@@ -3,10 +3,19 @@
 A quick and dirty version of [[https://raytracing.github.io/][Ray Tracing in One Weekend]], using Nim.
 
 I went through the book to better understand some concepts
-(essentially how to structure code) in ray tracing and not to
+(essentially how to structure code in ray tracing) and not to
 write the nicest code. For a prettier Nim implementation take a look
 at @mratsim's [[https://github.com/mratsim/trace-of-radiance][trace of radiance]].
 
 The final output of my code (final book 1 result):
 
 [[media/rayTracing.png]]
+
+On a positive note I have to say that I was really surprised that "in
+one weekend" is not an exaggeration!
+
+The lessons learned here will need to be applied to an X-ray ray
+tracer (in which the material interactions of course are very
+different) here:
+
+https://github.com/Vindaar/AxionElectronLimit/blob/wip_thesis/raytracer2018.nim

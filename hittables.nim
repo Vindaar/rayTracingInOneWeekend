@@ -2,10 +2,16 @@ import basetypes, math, aabb, algorithm, random
 
 type
   HittableKind* = enum
-    htSphere
-  Hittable* = object
+    htSphere, htBvhNode, htXyRect, htXzRect, htYzRect, htBox, htDisk
+  Hittable* = ref object
     case kind*: HittableKind
     of htSphere: hSphere*: Sphere
+    of htBvhNode: hBvhNode*: BvhNode
+    of htXyRect: hXyRect*: XyRect
+    of htXzRect: hXzRect*: XzRect
+    of htYzRect: hYzRect*: YzRect
+    of htBox: hBox: Box
+    of htDisk: hDisk: Disk
 
   HittablesList* = object
     len: int # len of data seq
@@ -29,6 +35,27 @@ type
     radius*: float
     mat*: Material
 
+  XyRect* = object
+    mat*: Material
+    x0*, x1*, y0*, y1*, k*: float
+
+  XzRect* = object
+    mat*: Material
+    x0*, x1*, z0*, z1*, k*: float
+
+  YzRect* = object
+    mat*: Material
+    y0*, y1*, z0*, z1*, k*: float
+
+  Box* = object
+    boxMin*: Point
+    boxMax*: Point
+    sides*: HittablesList
+
+  Disk* = object
+    distance*: float # distance along z axis
+    radius*: float
+    mat*: Material
 
   MaterialKind* = enum
     mkLambertian, mkMetal, mkDielectric
@@ -134,11 +161,39 @@ proc add*(h: var HittablesList, s: Sphere) =
   ht.hSphere = s
   h.add ht
 
+proc add*(h: var HittablesList, s: Disk) =
+  var ht = Hittable(kind: htDisk)
+  ht.hDisk = s
+  h.add ht
 
 proc add*(h: var HittablesList, b: BvhNode) =
   var ht = Hittable(kind: htBvhNode)
   ht.hBvhNode = b
   h.add ht
+
+proc add*(h: var HittablesList, b: XyRect) =
+  var ht = Hittable(kind: htXyRect)
+  ht.hXyRect = b
+  h.add ht
+
+proc add*(h: var HittablesList, b: XzRect) =
+  var ht = Hittable(kind: htXzRect)
+  ht.hXzRect = b
+  h.add ht
+
+proc add*(h: var HittablesList, b: YzRect) =
+  var ht = Hittable(kind: htYzRect)
+  ht.hYzRect = b
+  h.add ht
+
+proc add*(h: var HittablesList, b: Box) =
+  var ht = Hittable(kind: htBox)
+  ht.hBox = b
+  h.add ht
+
+proc setFaceNormal*(rec: var HitRecord, r: Ray, outward_normal: Vec3) =
+  rec.frontFace = r.dir.dot(outward_normal) < 0
+  rec.normal = if rec.frontFace: outward_normal else: -outward_normal
 
 proc hit*(h: Hittable, r: Ray, t_min, t_max: float, rec: var HitRecord): bool {.gcsafe.}
 proc hit*(n: BvhNode, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
@@ -187,6 +242,80 @@ proc hit*(s: Sphere, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
 
   result = true
 
+proc hit*(d: Disk, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
+  let t = (d.distance - r.orig.z) / r.dir.z
+  if t < t_min or t > t_max:
+    return false
+  if r.dir.z == 0.0:
+    # ray is parallel to disk
+    return false
+  let pHit = r.at(t)
+  let dist = pHit.x * pHit.x + pHit.y * pHit.y
+
+  if dist > (d.radius * d.radius):
+    return false
+  rec.t = t
+  rec.p = r.at(rec.t)
+  let outward_normal = vec3(0, 0, 1)
+  rec.setFaceNormal(r, outward_normal.Vec3)
+  rec.mat = d.mat
+
+  result = true
+
+proc hit*(rect: XyRect, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
+  let t = (rect.k - r.orig.z) / r.dir.z
+  if t < t_min or t > t_max:
+    return false
+  let x = r.orig.x + t * r.dir.x
+  let y = r.orig.y + t * r.dir.y
+  if x < rect.x0 or x > rect.x1 or y < rect.y0 or y > rect.y1:
+    return false
+  #rec.u = (x - rect.x0) / (rect.x1 - rect.x0)
+  #rec.v = (y - rect.y0) / (rect.y1 - rect.y0)
+  rec.t = t
+  let outward_normal = vec3(0, 0, 1)
+  rec.setFaceNormal(r, outward_normal)
+  rec.mat = rect.mat
+  rec.p = r.at(t)
+  result = true
+
+proc hit*(rect: XzRect, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
+  let t = (rect.k - r.orig.y) / r.dir.y
+  if t < t_min or t > t_max:
+    return false
+  let x = r.orig.x + t * r.dir.x
+  let z = r.orig.z + t * r.dir.z
+  if x < rect.x0 or x > rect.x1 or z < rect.z0 or z > rect.z1:
+    return false
+  #rec.u = (x - rect.x0) / (rect.x1 - rect.x0)
+  #rec.v = (y - rect.y0) / (rect.y1 - rect.y0)
+  rec.t = t
+  let outward_normal = vec3(0, 1, 0)
+  rec.setFaceNormal(r, outward_normal)
+  rec.mat = rect.mat
+  rec.p = r.at(t)
+  result = true
+
+proc hit*(rect: YzRect, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
+  let t = (rect.k - r.orig.x) / r.dir.x
+  if t < t_min or t > t_max:
+    return false
+  let y = r.orig.y + t * r.dir.y
+  let z = r.orig.z + t * r.dir.z
+  if y < rect.y0 or y > rect.y1 or z < rect.z0 or z > rect.z1:
+    return false
+  #rec.u = (x - rect.x0) / (rect.x1 - rect.x0)
+  #rec.v = (y - rect.y0) / (rect.y1 - rect.y0)
+  rec.t = t
+  let outward_normal = vec3(1, 0, 0)
+  rec.setFaceNormal(r, outward_normal)
+  rec.mat = rect.mat
+  rec.p = r.at(t)
+  result = true
+
+proc hit*(box: Box, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
+  result = box.sides.hit(r, t_min, t_max, rec)
+
 proc hit*(h: Hittable, r: Ray, t_min, t_max: float, rec: var HitRecord): bool {.gcsafe.} =
   case h.kind
   of htSphere: result = h.hSphere.hit(r, t_min, t_max, rec)
@@ -203,6 +332,40 @@ proc boundingBox*(s: Sphere, output_box: var AABB): bool =
     s.center - point(s.radius, s.radius, s.radius),
     s.center + point(s.radius, s.radius, s.radius)
   )
+  result = true
+
+proc boundingBox*(s: Disk, output_box: var AABB): bool =
+  ## in z direction only a small width
+  output_box = initAabb(
+    - point(s.radius, s.radius, s.distance - 0.0001),
+    + point(s.radius, s.radius, s.distance + 0.0001)
+  )
+  result = true
+
+proc boundingBox*(n: BvhNode, outputBox: var AABB): bool =
+  outputBox = n.box
+  result = true
+
+proc boundingBox*(r: XyRect, outputBox: var AABB): bool =
+  ## bounding box needs to have a non-zero width in each dimension!
+  outputBox = initAabb(point(r.x0, r.y0, r.k - 0.0001),
+                       point(r.x1, r.y1, r.k + 0.0001))
+  result = true
+
+proc boundingBox*(r: XzRect, outputBox: var AABB): bool =
+  ## bounding box needs to have a non-zero width in each dimension!
+  outputBox = initAabb(point(r.x0, r.k - 0.0001, r.z0),
+                       point(r.x1, r.k + 0.0001, r.z1))
+  result = true
+
+proc boundingBox*(r: YzRect, outputBox: var AABB): bool =
+  ## bounding box needs to have a non-zero width in each dimension!
+  outputBox = initAabb(point(r.k - 0.0001, r.y0, r.z0),
+                       point(r.k + 0.0001, r.y1, r.z1))
+  result = true
+
+proc boundingBox*(b: Box, outputBox: var AABB): bool =
+  outputBox = initAabb(b.boxMin, b.boxMax)
   result = true
 
 proc boundingBox*(h: Hittable, output_box: var AABB): bool =
@@ -304,6 +467,34 @@ proc initMaterial*[T](m: T): Material =
 
 proc initSphere*(center: Point, radius: float, mat: Material): Sphere =
   result = Sphere(center: center, radius: radius, mat: mat)
+
+proc initDisk*(distance: float, radius: float, mat: Material): Disk =
+  result = Disk(distance: distance, radius: radius, mat: mat)
+
+proc initXyRect*(x0, x1, y0, y1, k: float, mat: Material): XyRect =
+  result = XyRect(x0: x0, x1: x1, y0: y0, y1: y1, k: k, mat: mat)
+
+proc initXzRect*(x0, x1, z0, z1, k: float, mat: Material): XzRect =
+  result = XzRect(x0: x0, x1: x1, z0: z0, z1: z1, k: k, mat: mat)
+
+proc initYzRect*(y0, y1, z0, z1, k: float, mat: Material): YzRect =
+  result = YzRect(y0: y0, y1: y1, z0: z0, z1: z1, k: k, mat: mat)
+
+proc initBox*(p0, p1: Point, mat: Material): Box =
+  result.boxMin = p0
+  result.boxMax = p1
+
+  result.sides = initHittables(0)
+
+  result.sides.add initXyRect(p0.x, p1.x, p0.y, p1.y, p1.z, mat)
+  result.sides.add initXyRect(p0.x, p1.x, p0.y, p1.y, p0.z, mat)
+
+  result.sides.add initXzRect(p0.x, p1.x, p0.z, p1.z, p1.y, mat)
+  result.sides.add initXzRect(p0.x, p1.x, p0.z, p1.z, p0.y, mat)
+
+  result.sides.add initYzRect(p0.y, p1.y, p0.z, p1.z, p1.x, mat)
+  result.sides.add initYzRect(p0.y, p1.y, p0.z, p1.z, p0.x, mat)
+
 proc scatter*(l: Lambertian, r_in: Ray, rec: HitRecord,
               attenuation: var Color, scattered: var Ray): bool =
   var scatter_direction = rec.normal + randomUnitVector()

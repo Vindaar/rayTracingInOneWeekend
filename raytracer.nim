@@ -353,6 +353,50 @@ proc randomScene(): HittablesList =
   let mat3 = initMaterial(initMetal(color(0.7, 0.6, 0.5), 0.0))
   result.add Sphere(center: point(4, 1, 0), radius: 1.0, mat: mat3)
 
+proc sceneCast(): HittablesList =
+  result = initHittables(0)
+
+  let groundMaterial = initMaterial(initLambertian(color(0.2, 0.7, 0.2)))
+  let EarthR = 6_371_000.0
+  result.add Sphere(center: point(0, -EarthR, 0), radius: EarthR, mat: groundMaterial)
+
+  #let concrete = initMaterial(initLambertian(color(0.5, 0.5, 0.5)))
+  #let airportWall = initXyRect(-10, 0, 0, 10, 10, mat = concrete)
+  #result.add airportWall
+
+  let strMetal = initMaterial(initMetal(color(0.6, 0.6, 0.6), 0.2))
+  let telBox = initBox(point(-2, 1.5, 4), point(0, 1.75, 5.5), strMetal)
+  result.add telBox
+
+  let concreteMaterial = initMaterial(initLambertian(color(0.6, 0.6, 0.6)))
+  let controlRoom = initBox(point(1, 0.0, 0.0), point(4, 2.2, 2.2), concreteMaterial)
+  result.add controlRoom
+
+  let floorMaterial = initMaterial(initLambertian(color(0.7, 0.7, 0.7)))
+  let upperFloor = initBox(point(-4, 0.0, -100), point(20, 2.0, 0), floorMaterial)
+  result.add upperFloor
+
+  let glass = initMaterial(initDielectric(1.5))
+  let railing = initBox(point(-4, 2.0, -0.1), point(10, 2.6, 0), floorMaterial)
+  result.add railing
+
+  let SunR = 695_700_000.0
+  let AU = 1.496e11
+  let pos = point(AU / 10.0, AU / 10.0, AU).normalize * AU
+  echo pos.repr
+  let sunMat = initMaterial(initLambertian(color(1.0, 1.0, 0.0)))
+  result.add Sphere(center: pos, radius: SunR, mat: sunMat)
+
+  #result.add Disk(distance: 3.3, radius: 10.0, mat: concreteMaterial)
+
+  for x in result:
+    echo x.repr
+
+proc sceneDisk(): HittablesList =
+  result = initHittables(0)
+  let groundMaterial = initMaterial(initLambertian(color(0.2, 0.7, 0.2)))
+  result.add Disk(distance: 1.5, radius: 1.5, mat: groundMaterial)
+
 proc main =
   # Image
   const ratio = 3.0 / 2.0 #16.0 / 9.0

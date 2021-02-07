@@ -406,23 +406,26 @@ proc main =
   let maxDepth = 50
 
   # World
-  var world = randomScene()
+  var world = randomScene() #sceneCast() #randomScene()
 
   # Camera
-  let lookFrom = point(13, 2, 3)#point(3,3,2)
-  let lookAt = point(0, 0, 0)#point(0,0,-1)
+  #let lookFrom = point(-1, 5.0, -4) #point(-0.5, 3, -0.5)#point(3,3,2)
+  #let lookAt = point(1.0, 3.0, 2.0) #point(0, 1.5, 2.5)#point(0,0,-1)
+  let lookFrom = point(3,3,2)
+  let lookAt = point(0,0,-1)
   let vup = vec3(0,1,0)
   let distToFocus = 10.0 #(lookFrom - lookAt).length()
-  let aperture = 0.1
-  let camera = initCamera(lookFrom, lookAt, vup, vfov = 20,
+  let aperture = 0.0
+  let camera = initCamera(lookFrom, lookAt, vup, vfov = 90,
                           aspectRatio = ratio,
                           aperture = aperture, focusDist = distToFocus)
 
   # Rand seed
   randomize(0xE7)
 
-  # Render
-  img.render("/tmp/test_small.ppm", world, camera, samplesPerPixel, maxDepth)
+  # Render (image)
+  #img.renderMC("/tmp/test_cast.ppm", world, camera, samplesPerPixel, maxDepth)
+  img.renderSdl(world, camera, samplesPerPixel, maxDepth)
 
 when isMainModule:
   main()

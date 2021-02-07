@@ -98,6 +98,18 @@ proc nearZero*(v: Vec3): bool =
   const epsilon = 1e-8
   result = abs(v[0]) < epsilon and abs(v[1]) < epsilon and abs(v[2]) < epsilon
 
+proc rotate*(v: Vec3, phi, theta, gamma: float): Vec3 =
+  ## rotates the vector `v` around the angles phi and theta
+  result[0] = cos(phi) * cos(theta) * v[0] +
+              (cos(phi) * sin(theta) * sin(gamma) - sin(phi) * cos(gamma)) * v[1] +
+              (cos(phi) * sin(theta) * cos(gamma) + sin(phi) * sin(gamma)) * v[2]
+  result[1] = sin(phi) * cos(theta) * v[0] +
+              (sin(phi) * sin(theta) * sin(gamma) + cos(phi) * cos(gamma)) * v[1] +
+              (sin(phi) * sin(theta) * cos(gamma) - cos(phi) * sin(gamma)) * v[2]
+  result[2] = -sin(theta) * v[0] +
+              cos(theta) * sin(gamma) * v[1] +
+              cos(theta) * cos(gamma) * v[2]
+
 proc reflect*(v, n: Vec3): Vec3 =
   result = v - 2 * v.dot(n) * n
 

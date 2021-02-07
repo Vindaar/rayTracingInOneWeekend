@@ -78,6 +78,7 @@ proc randomScene(): HittablesList =
   let groundMaterial = initMaterial(initLambertian(color(0.5, 0.5, 0.5)))
   result.add Sphere(center: point(0, -1000, 0), radius: 1000, mat: groundMaterial)
 
+  var smallSpheres = initHittables(0)
   for a in -11 ..< 11:
     for b in -11 ..< 11:
       let chooseMat = rand(1.0)
@@ -89,17 +90,19 @@ proc randomScene(): HittablesList =
           # diffuse
           let albedo = randomVec().Color * randomVec().Color
           sphereMaterial = initMaterial(initLambertian(albedo))
-          result.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
+          smallSpheres.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
         elif chooseMat < 0.95:
           # metal
           let albedo = randomVec(0.5, 1.0).Color
           let fuzz = rand(0.0 .. 0.5)
           sphereMaterial = initMaterial(initMetal(albedo, fuzz))
-          result.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
+          smallSpheres.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
         else:
           # glass
           sphereMaterial = initMaterial(initDielectric(1.5))
-          result.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
+          smallSpheres.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
+
+  result.add initBvhNode(smallSpheres)
 
   let mat1 = initMaterial(initDielectric(1.5))
   result.add Sphere(center: point(0, 1, 0), radius: 1.0, mat: mat1)

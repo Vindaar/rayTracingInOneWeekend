@@ -10,6 +10,8 @@ type
   Color* = distinct Vec3
   Point* = distinct Vec3
 
+  ColorU8* = tuple[r, g, b: uint8]
+
   Ray* = object
     orig*: Point
     dir*: Vec3

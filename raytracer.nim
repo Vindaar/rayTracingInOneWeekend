@@ -1,6 +1,8 @@
-import strformat, os, terminal, macros, math, random
+import strformat, os, terminal, macros, math, random, times
 
-import basetypes, hittables, camera, hitrecord
+import basetypes, hittables, camera
+
+import arraymancer
 
 proc rayColor*(r: Ray, world: var HittablesList, depth: int): Color =
   var rec: HitRecord
@@ -43,6 +45,34 @@ proc render*(img: Image, f: string, world: var HittablesList,
         let r = camera.getRay(u, v)
         pixelColor += rayColor(r, world, maxDepth)
       f.writeColor(pixelColor, samplesPerPixel)
+  f.close()
+
+proc renderMC*(img: Image, f: string, world: var HittablesList,
+               camera: Camera,
+               samplesPerPixel, maxDepth: int) =
+  ## Write a ppm file to `f`
+  var f = open(f, fmWrite)
+  f.write(&"P3\n{img.width} {img.height}\n255\n")
+  var numRays = samplesPerPixel * img.width * img.height
+  var buf = newTensor[Color](@[img.height, img.width])
+  var counts = newTensor[int](@[img.height, img.width])
+  var idx = 0
+  while idx < numRays:
+    let x = rand((img.width).float)
+    let y = rand((img.height).float)
+    let r = camera.getRay(x / (img.width - 1).float,
+                          y / (img.height - 1).float)
+    let color = rayColor(r, world, maxDepth)
+    buf[y.int, x.int] = buf[y.int, x.int] + color
+    counts[y.int, x.int] = counts[y.int, x.int] + 1
+    inc idx
+    if idx mod (img.width * img.height) == 0:
+      let remain = numRays - idx
+      stderr.write(&"\rRays remaining: {remain}")
+  for j in countdown(img.height - 1, 0):
+    stderr.write(&"\rScanlines remaining: {j}")
+    for i in 0 ..< img.width:
+      f.writeColor(buf[j, i], counts[j, i])
   f.close()
 
 proc sceneRedBlue(): HittablesList =

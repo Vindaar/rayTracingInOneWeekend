@@ -1,4 +1,4 @@
-import macros, math, random
+import macros, math, random, strformat
 
 type
   Image* = object
@@ -23,6 +23,9 @@ proc point*(x, y, z: float): Point = Point(Vec3(arr: [x, y, z]))
 proc `[]=`*(v: var Vec3; ix: int; c: float): void {.inline.} = v.arr[ix] = c
 proc `[]`*(v: Vec3; ix: int): float {.inline.} = v.arr[ix]
 proc `[]`*(v: var Vec3; ix: int): var float {.inline.} = v.arr[ix]
+
+proc `$`*(v: Vec3): string =
+  result = &"(Vec3: [{v[0]}, {v[1]}, {v[2]}])"
 
 proc dot*(v, u: Vec3): float =
   for i in 0 ..< 3:
@@ -164,6 +167,11 @@ template borrowOps(typ: typed): untyped =
 
 borrowOps(Color)
 borrowOps(Point)
+
+proc `$`*(v: Point): string =
+  result = &"(Point: [{v[0]}, {v[1]}, {v[2]}])"
+proc `$`*(v: Color): string =
+  result = &"(Color: [{v[0]}, {v[1]}, {v[2]}])"
 
 template makeMathBorrow(typ, op: typed): untyped {.dirty.} =
   proc `op`*(v, u: typ): typ {.inline, borrow.}

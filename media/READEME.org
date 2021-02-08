@@ -1,0 +1,15 @@
+* All benchmark plots
+
+[[media/bench_samplesPerPixel_100_Num Spheres_25.png]]
+[[media/bench_samplesPerPixel_100_Num Spheres_121.png]]
+[[media/bench_samplesPerPixel_300_Num Spheres_121.png]]
+[[media/bench_samplesPerPixel_500_Num Spheres_121.png]]
+[[media/bench_Width_100_Num Spheres_121.png]]
+[[media/bench_Width_200_Num Spheres_121.png]]
+[[media/bench_Width_300_Num Spheres_121.png]]
+[[media/bench_Width_100_samplesPerPixel_100.png]]
+[[media/bench_Width_200_samplesPerPixel_100.png]]
+[[media/bench_Width_300_samplesPerPixel_100.png]]
+[[media/bench_facet_samplesPerPixel_Width.png]]
+[[media/bench_facet_Width_samplesPerPixel.png]]
+[[media/bench_number_of_spheres.png]]

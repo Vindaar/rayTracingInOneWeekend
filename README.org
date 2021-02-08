@@ -28,3 +28,112 @@ https://github.com/Vindaar/AxionElectronLimit/blob/wip_thesis/raytracer2018.nim
   boxes (AABBs) for better performance in scenes with many objects
 - rendering to SDL2 window with *interactive controls*
 - multithreaded rendering using Weave
+
+** Benchmarks
+
+BVH benchmarks.
+
+Benchmarking the random scene from end of book 1.
+Varying:
+- samples per pixel
+- resolution
+- number of balls in scene
+
+Only the small balls are contained in BVH nodes. The 300 main balls as
+well as the "globe" are not contained in the BVH. All benchmarks are
+single threaded.
+
+Aspect ratio: 3 / 2
+
+They are run on my laptop, so take them with a grain of salt. :) The
+idea is only to understand the scaling of each parameter using BVH
+vs. without.
+
+
+| Width | samplesPerPixel | BVH   | Num Spheres | time / s |
+|-------+-----------------+-------+-------------+----------|
+|   100 |             100 | true  | 11 • 11     |     4.43 |
+|   200 |             100 | true  | 11 • 11     |    18.04 |
+|   300 |             100 | true  | 11 • 11     |    41.79 |
+|   100 |             100 | false | 11 • 11     |    17.02 |
+|   200 |             100 | false | 11 • 11     |    68.99 |
+|   300 |             100 | false | 11 • 11     |   156.50 |
+|   100 |             100 | false | 5 • 5       |     3.65 |
+|   200 |             100 | false | 5 • 5       |    14.87 |
+|   300 |             100 | false | 5 • 5       |    33.48 |
+|   100 |             100 | true  | 5 • 5       |     1.63 |
+|   200 |             100 | true  | 5 • 5       |     6.54 |
+|   300 |             100 | true  | 5 • 5       |    15.34 |
+|   100 |             500 | true  | 11 • 11     |    22.32 |
+|   200 |             500 | true  | 11 • 11     |    90.03 |
+|   300 |             500 | true  | 11 • 11     |   205.81 |
+|   100 |             500 | false | 11 • 11     |    85.31 |
+|   200 |             500 | false | 11 • 11     |   345.69 |
+|   300 |             500 | false | 11 • 11     |   784.24 |
+|   100 |             300 | false | 11 • 11     |    52.88 |
+|   200 |             300 | false | 11 • 11     |   210.40 |
+|   300 |             300 | false | 11 • 11     |   470.47 |
+|   100 |             300 | true  | 11 • 11     |    13.33 |
+|   200 |             300 | true  | 11 • 11     |    54.02 |
+|   300 |             300 | true  | 11 • 11     |   123.69 |
+|   200 |             100 | true  | 15 • 15     |    31.40 |
+|   200 |             100 | false | 15 • 15     |   134.20 |
+
+Let's generate a bunch of plots from this. Ideally we'd want more
+different width / number of spheres values, but well.
+
+#+begin_src nim :tangle plots_benchmark.nim :results raw
+import ggplotnim, strutils, math, strformat
+proc compNumSphere(s: string): int = parseInt(split(s)[0]) ^ 2
+var df = readCsvTyped("benchmark_results.csv")
+  .mutate(f{string -> int: "Num Spheres" ~ compNumSphere(df["Num Spheres"][idx])})
+
+proc embed(fname: string) = echo &"[[{fname}]]"
+## plots for varying width and different constant settings
+proc genPlots(x: string, cols: seq[string]) =
+  for tup, subDf in groups(df.group_by(cols)):
+    let fname = &"media/bench_{tup[0][0]}_{tup[0][1]}_{tup[1][0]}_{tup[1][1]}.png"
+    if subDf.len > 2:
+      ggplot(subDf, aes(x, "time / s", color = "BVH")) +
+        geom_point() +
+        ggtitle(&"Comparison of {x} for {tup[0][0]}: {tup[0][1]}, {tup[1][0]}: {tup[1][1]}") +
+        theme_opaque() +
+        ggsave(fname)
+      embed(fname)
+
+genPlots("Width", @["samplesPerPixel", "Num Spheres"])
+genPlots("samplesPerPixel", @["Width", "Num Spheres"])
+genPlots("Num Spheres", @["Width", "samplesPerPixel"])
+block SameSphere:
+  let dfSph = df.filter(f{c"Num Spheres" == 11 * 11})
+  proc genFacet(col, facet: string) =
+    let fname = &"media/bench_facet_{facet}_{col}.png"
+    ggplot(dfSph, aes(col, "time / s", color = "BVH")) +
+      facet_wrap(facet) +
+      geom_point() +
+      ggtitle(&"Comparison of scaling of time vs. {col} for different {facet}") +
+      theme_opaque() +      
+      ggsave(fname)
+    embed(fname)      
+  genFacet("Width", "samplesPerPixel")
+  genFacet("samplesPerPixel", "Width")
+
+block NumSphere:
+  let dfSph = df.filter(f{c"Width" == 200 and `samplesPerPixel` == 100})
+  let fname = &"media/bench_number_of_spheres.png"
+  ggplot(dfSph, aes("Num Spheres", "time / s", color = "BVH")) +
+    geom_point() +
+    margin(top = 1.75) +
+    ggtitle(&"Comparison of scaling of time vs. # spheres for 100 samples per pixel, 200px width") +
+    theme_opaque() +    
+    ggsave(fname)
+  embed(fname)
+#+end_src
+
+We only show a few plots here. For all plots see [[media/README.org]].
+
+[[media/bench_facet_samplesPerPixel_Width.png]]
+
+[[media/bench_facet_Width_samplesPerPixel.png]]
+
+[[media/bench_number_of_spheres.png]]

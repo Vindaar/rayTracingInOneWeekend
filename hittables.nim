@@ -191,6 +191,10 @@ proc add*(h: var HittablesList, b: Box) =
   ht.hBox = b
   h.add ht
 
+proc add*(h: var HittablesList, lst: HittablesList) =
+  for x in lst:
+    h.add x
+
 proc setFaceNormal*(rec: var HitRecord, r: Ray, outward_normal: Vec3) =
   rec.frontFace = r.dir.dot(outward_normal) < 0
   rec.normal = if rec.frontFace: outward_normal else: -outward_normal

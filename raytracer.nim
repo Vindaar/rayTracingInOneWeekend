@@ -332,15 +332,15 @@ proc mixOfSpheres(): HittablesList =
   result.add Sphere(center: point(-1.0, 0, -1), radius: -0.4, mat: matLeft)
   result.add Sphere(center: point(1.0, 0, -1), radius: 0.5, mat: matRight)
 
-proc randomScene(): HittablesList =
+proc randomScene(useBvh = true, numBalls = 11): HittablesList =
   result = initHittables(0)
 
   let groundMaterial = initMaterial(initLambertian(color(0.5, 0.5, 0.5)))
   result.add Sphere(center: point(0, -1000, 0), radius: 1000, mat: groundMaterial)
 
   var smallSpheres = initHittables(0)
-  for a in -11 ..< 11:
-    for b in -11 ..< 11:
+  for a in -numBalls ..< numBalls:
+    for b in -numBalls ..< numBalls:
       let chooseMat = rand(1.0)
       var center = point(a.float + 0.9 * rand(1.0), 0.2, b.float + 0.9 * rand(1.0))
 
@@ -362,7 +362,10 @@ proc randomScene(): HittablesList =
           sphereMaterial = initMaterial(initDielectric(1.5))
           smallSpheres.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
 
-  result.add initBvhNode(smallSpheres)
+  if useBvh:
+    result.add initBvhNode(smallSpheres)
+  else:
+    result.add smallSpheres
 
   let mat1 = initMaterial(initDielectric(1.5))
   result.add Sphere(center: point(0, 1, 0), radius: 1.0, mat: mat1)
@@ -426,7 +429,7 @@ proc main =
   let maxDepth = 50
 
   # World
-  var world = randomScene() #sceneCast() #randomScene()
+  var world = randomScene(useBvh = false, 15) #sceneCast() #randomScene()
 
   # Camera
   #let lookFrom = point(-1, 5.0, -4) #point(-0.5, 3, -0.5)#point(3,3,2)
@@ -444,8 +447,9 @@ proc main =
   randomize(0xE7)
 
   # Render (image)
-  #img.renderMC("/tmp/test_cast.ppm", world, camera, samplesPerPixel, maxDepth)
-  img.renderSdl(world, camera, samplesPerPixel, maxDepth)
+  let fname = &"/tmp/render_width_{width}_samplesPerPixel_{samplesPerPixel}.ppm"
+  img.renderMC(fname, world, camera, samplesPerPixel, maxDepth)
+  #img.renderSdl(world, camera, samplesPerPixel, maxDepth)
 
 when isMainModule:
   main()

@@ -119,46 +119,29 @@ proc renderSdl*(img: Image, world: var HittablesList,
   if screen.isNil:
     quit($sdl2.getError())
 
-  discard setRelativeMouseMode(True32)
+  var mouseModeIsRelative = false
+  var movementIsFree = false
 
   var quit = false
   var event = sdl2.defaultEvent
-  #let renderObj = RenderObject(img: img, world: world, surface: window, renderer: renderer, camera: camera, samplesPerPixel: samplesPerPixel, maxDepth: maxDepth)
-  #echo "render frame"
-  #renderObj.render()
-  #echo "done"
-  #echo "render frame"
-  #renderObj.render()
-  #echo "done"
-  #echo "render frame"
-  #renderObj.render()
-  #echo "done"
 
-  #var window = sdl2.getsurface(screen)
-  #discard lockSurface(window)
-  #var bufT = fromBuffer[int32](window.pixels, @[img.height, img.width])
-  #var counts = newTensor[int](@[img.height, img.width])
-  #unlockSurface(window)
   var window = sdl2.getsurface(screen)
-  template resetBufs(bufT, counts: untyped): untyped {.dirty.} =
-    bufT = newTensor[uint32](@[img.height, img.width])
-    #renderer.clear()
-    counts = newTensor[int](@[img.height, img.width])
 
-  var bufT = newTensor[uint32](@[img.height, img.width])# cast[ptr UncheckedArray[uint32]](window.pixels) #fromBuffer[uint32](window.pixels, @[img.height, img.width])
-  #discard lockSurface(window)
-  ## NOTE: cannot work, because surface becomes invalid in the middle of computation
-  #var bufT = fromBuffer[uint32](window.pixels, @[img.height, img.width])
-  #unlockSurface(window)
-
-  var counts = newTensor[int](@[img.height, img.width])
-  var xpos = window.w.float / 2.0 # = 400 to center the cursor in the window
-  var ypos = window.h.float / 2.0 # = 300 to center the cursor in the window
-
+  # store original position from and to we look to reset using `backspace`
   let origLookFrom = camera.lookFrom
   let origLookAt = camera.lookAt
 
-  #unlockSurface(window)
+  template resetBufs(bufT, counts: untyped): untyped {.dirty.} =
+    bufT.setZero()
+    when not defined(threads):
+      counts.setZero()
+
+  var bufT = newTensor[uint32](@[img.height, img.width])
+  when not defined(threads):
+    var counts = newTensor[int](@[img.height, img.width])
+
+  let width = img.width
+  let height = img.height
   while not quit:
     while pollEvent(event):
       case event.kind
@@ -167,69 +150,70 @@ proc renderSdl*(img: Image, world: var HittablesList,
       of KeyDown:
         const dist = 1.0
         case event.key.keysym.scancode
-        of SDL_SCANCODE_LEFT:
-          let cL = (camera.lookFrom - camera.lookAt).Vec3
-
-          let zAx = vec3(0, 1, 0)
-          echo "HERE ", vec3(3, -1, 4).cross(zAx)
-          let newFrom = cL.cross(zAx).normalize().Point
-
-          #let angle = arccos(cL.dot(xAx) / (xAx.length() * cL.length()))
-          #let newFrom = xAx.rotate(0, angle, 0).Point
-          echo camera.lookFrom.repr, "  ↦   ", newFrom.repr, "  ⇒   ", (camera.lookFrom - newFrom).repr, "     ↦↦↦     ", (camera.lookAt - newFrom).repr
-
-          let dist = (camera.lookFrom - camera.lookAt).length()
-          let nCL = camera.lookFrom + newFrom
-          let nCA = camera.lookAt + newFrom
-          let newDist = (nCL - nCA).length()
-          camera.updateLookFromAt(nCL, nCA)
-          resetBufs(bufT, counts)
-        of SDL_SCANCODE_RIGHT:
+        of SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT, SDL_SCANCODE_A, SDL_SCANCODE_D:
           let cL = (camera.lookFrom - camera.lookAt).Vec3
           let zAx = vec3(0, 1, 0)
           let newFrom = cL.cross(zAx).normalize().Point
-          let nCL = camera.lookFrom - newFrom
-          let nCA = camera.lookAt - newFrom
+          var nCL: Point
+          var nCA: Point
+          if event.key.keysym.scancode in {SDL_SCANCODE_LEFT, SDL_SCANCODE_A}:
+            nCL = camera.lookFrom + newFrom
+            nCA = camera.lookAt + newFrom
+          else:
+            nCL = camera.lookFrom - newFrom
+            nCA = camera.lookAt - newFrom
           camera.updateLookFromAt(nCL, nCA)
           resetBufs(bufT, counts)
-        of SDL_SCANCODE_UP:
+        of SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_W, SDL_SCANCODE_S:
           var cL = (camera.lookFrom - camera.lookAt).Vec3
-          cL[1] = 0.0
+          if not movementIsFree:
+            cL[1] = 0.0
           cL = cL.normalize()
-          let nCL = camera.lookFrom - cL.Point
-          let nCA = camera.lookAt - cL.Point
-          camera.updateLookFromAt(nCL, nCA)
-          resetBufs(bufT, counts)
-        of SDL_SCANCODE_DOWN:
-          var cL = (camera.lookFrom - camera.lookAt).Vec3
-          cL[1] = 0.0
-          cL = cL.normalize()
-          let nCL = camera.lookFrom + cL.Point
-          let nCA = camera.lookAt + cL.Point
+          var nCL: Point
+          var nCA: Point
+          if event.key.keysym.scancode in {SDL_SCANCODE_UP, SDL_SCANCODE_W}:
+            nCL = camera.lookFrom - cL.Point
+            nCA = camera.lookAt - cL.Point
+          else:
+            nCL = camera.lookFrom + cL.Point
+            nCA = camera.lookAt + cL.Point
+
           camera.updateLookFromAt(nCL, nCA)
           resetBufs(bufT, counts)
         of SDL_SCANCODE_BACKSPACE:
-          echo "Resetting view"
+          echo "Resetting view!"
           camera.updateLookFromAt(origLookFrom, origLookAt)
           resetBufs(bufT, counts)
+        of SDL_SCANCODE_ESCAPE:
+          ## deactivate relative mouse motion
+          if mouseModeIsRelative:
+            discard setRelativeMouseMode(False32)
+            mouseModeIsRelative = false
+        of SDL_SCANCODE_N:
+          ## activate free movement (n for noclip ;))
+          movementIsFree = not movementIsFree
         else: discard
+      of MousebuttonDown:
+        ## activate relative mouse motion
+        if not mouseModeIsRelative:
+          discard setRelativeMouseMode(True32)
+          mouseModeIsRelative = true
       of WindowEvent:
         freeSurface(window)
         window = sdl2.getsurface(screen)
       of MouseMotion:
-        # assuming I have a 800x600 Game window, then the result would be:
-        xpos = -event.motion.xrel.float / 1000.0
-        ypos = event.motion.yrel.float / 1000.0
-
-        let newLook = (camera.lookFrom.Vec3).rotate(0, xpos, ypos)
-        echo "xpos : ", xpos, " ypos : ", ypos, " lookFrom ", newLook.repr
-        camera.updateLookFromFront(Point(newLook))
+        ## for now just take a small fraction of movement as basis
+        let yaw = -event.motion.xrel.float / 1000.0
+        var pitch = -event.motion.yrel.float / 1000.0
+        var newLook: Vec3
+        if not movementIsFree:
+          ## TODO: fix me
+          newLook = (camera.lookAt - camera.lookFrom).Vec3.rotateAround(camera.lookAt, yaw, 0, pitch)
+          camera.updateLookFrom(Point(newLook))
+        else:
+          camera.updateYawPitchRoll(camera.lookFrom, camera.yaw + yaw, camera.pitch + pitch, 0.0)
         resetBufs(bufT, counts)
       else: echo event.kind
-      #discard
-    echo "render frame /{etrniedtniuae"
-    #freeSurface(window)
-    #var window = sdl2.getsurface(screen)
     discard lockSurface(window)
 
     let width = img.width
@@ -278,11 +262,6 @@ proc renderSdl*(img: Image, world: var HittablesList,
     unlockSurface(window)
     #sdl2.clear(arg.renderer)
     sdl2.present(renderer)
-    #delay(10)
-
-    #renderObj.render()
-    echo "done"
-
   sdl2.quit()
 
 proc sceneRedBlue(): HittablesList =

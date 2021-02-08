@@ -115,6 +115,11 @@ proc rotate*(v: Vec3, phi, theta, gamma: float): Vec3 =
               cos(theta) * sin(gamma) * v[1] +
               cos(theta) * cos(gamma) * v[2]
 
+proc rotateAround*(v: Vec3, around: Point, phi, theta, gamma: float): Vec3 =
+  var v0 = v - around.Vec3
+  let rot = v0.rotate(phi, theta, gamma)
+  result = rot + around.Vec3
+
 proc reflect*(v, n: Vec3): Vec3 =
   result = v - 2 * v.dot(n) * n
 

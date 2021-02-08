@@ -6,6 +6,8 @@ import arraymancer
 
 import sdl2 except Color, Point
 
+when defined(threads):
+  import weave
 
 proc rayColor*(r: Ray, world: HittablesList, depth: int): Color =
   var rec: HitRecord
@@ -130,6 +132,30 @@ proc renderSdlFrame(buf: var Tensor[uint32], counts: var Tensor[int],
     buf[yIdx, xIdx] = sdlColor
     inc idx
 
+proc renderFrame(j: int, buf: ptr UncheckedArray[uint32], window: SurfacePtr, numPer, numRays, width, height: int,
+                 camera: Camera, world: HittablesList, maxDepth: int) =
+  let frm = numPer * j
+  let to = if j == 12: width * height - 1 else: numPer * (j + 1) - 1
+  var counts = newTensor[int](to - frm)
+  var j = 0
+  while j < numRays:
+    let idx = rand(frm.float .. to.float)
+    let x = idx mod width.float
+    let y = (height.float - idx / height.float)
+    #if x.int >= window.w: continue
+    #if y.int >= window.h: continue
+    let r = camera.getRay(x.float / (width - 1).float,
+                          y.float / (height - 1).float)
+    let color = rayColor(r, world, maxDepth)
+    counts[idx.int - frm] = counts[idx.int - frm] + 1
+    let curColor = buf[idx.int - frm].toColor
+    let delta = (color.gammaCorrect - curColor) / counts[idx.int - frm].float
+    let newColor = curColor + delta
+    let cu8 = toColorU8(newColor)
+    let sdlColor = sdl2.mapRGB(window.format, cu8.r.byte, cu8.g.byte, cu8.b.byte)
+    buf[idx.int - frm] = sdlColor
+    inc j
+
 proc copyBuf(bufT: Tensor[uint32], window: SurfacePtr) =
   var surf = fromBuffer[uint32](window.pixels, @[window.h.int, window.w.int])
   if surf.shape == bufT.shape:
@@ -177,6 +203,11 @@ proc renderSdl*(img: Image, world: var HittablesList,
 
   let width = img.width
   let height = img.height
+  when defined(threads):
+    let numPer = (img.width * img.height) div 12
+    var ptrSeq = newSeq[ptr UncheckedArray[uint32]](12)
+    for i in 0 ..< 12:
+      ptrSeq[i] = cast[ptr UncheckedArray[uint32]](bufT.unsafe_raw_offset()[i * numPer].addr)
   while not quit:
     while pollEvent(event):
       case event.kind
@@ -260,12 +291,15 @@ proc renderSdl*(img: Image, world: var HittablesList,
       renderSdlFrame(bufT, counts, window, numRays, width, height, camera, world, maxDepth)
       copyBuf(bufT, window)
     else:
-      echo "unequal"
-      for y in 0 ..< surf.shape[0]:
-        for x in 0 ..< surf.shape[1]:
-          surf[y, x] = bufT[y, x]
-    let t1 = cpuTime()
-    echo "copying took ", t1 - t0, " s"
+      ## TODO: replace this by a long running background service to which we submit
+      ## jobs and the await them? So we don't have the overhead!
+      init(Weave)
+      parallelFor j in 0 ..< 12:
+        captures: {ptrSeq, window, numPer, numRays, width, height, camera, world, maxDepth}
+        renderFrame(j, ptrSeq[j], window, numPer, numRays, width, height, camera, world, maxDepth)
+      exit(Weave)
+      copyBuf(bufT, window)
+
     unlockSurface(window)
     #sdl2.clear(arg.renderer)
     sdl2.present(renderer)

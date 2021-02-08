@@ -106,6 +106,40 @@ proc renderMC*(img: Image, f: string, world: var HittablesList,
       f.writeColor(buf[j, i], counts[j, i])
   f.close()
 
+proc renderSdlFrame(buf: var Tensor[uint32], counts: var Tensor[int],
+                    window: SurfacePtr, numRays, width, height: int,
+                    camera: Camera, world: HittablesList, maxDepth: int) =
+  var idx = 0
+  while idx < numRays:
+    let x = rand((width).float)
+    let y = rand((height).float)
+    #if x.int >= window.w: continue
+    #if y.int >= window.h: continue
+    let r = camera.getRay(x / (width - 1).float,
+                          y / (height - 1).float)
+    let color = rayColor(r, world, maxDepth)
+    let yIdx = height - y.int - 1
+    let xIdx = x.int
+    counts[yIdx, xIdx] = counts[yIdx, xIdx] + 1
+    let curColor = buf[yIdx, xIdx].toColor
+    let delta = (color.gammaCorrect - curColor) / counts[yIdx, xIdx].float
+    let newColor = curColor + delta
+    let cu8 = toColorU8(newColor)
+    let sdlColor = sdl2.mapRGB(window.format, cu8.r.byte, cu8.g.byte, cu8.b.byte)
+    buf[yIdx, xIdx] = sdlColor
+    inc idx
+
+proc copyBuf(bufT: Tensor[uint32], window: SurfacePtr) =
+  var surf = fromBuffer[uint32](window.pixels, @[window.h.int, window.w.int])
+  if surf.shape == bufT.shape:
+    surf.copyFrom(bufT)
+  else:
+    echo "Buffer and window size don't match, slow copy!"
+    ## have to copy manually, because surf smaller than bufT
+    for y in 0 ..< surf.shape[0]:
+      for x in 0 ..< surf.shape[1]:
+        surf[y, x] = bufT[y, x]
+
 proc renderSdl*(img: Image, world: var HittablesList,
                 camera: Camera,
                 samplesPerPixel, maxDepth: int) =
@@ -213,45 +247,17 @@ proc renderSdl*(img: Image, world: var HittablesList,
         else:
           camera.updateYawPitchRoll(camera.lookFrom, camera.yaw + yaw, camera.pitch + pitch, 0.0)
         resetBufs(bufT, counts)
+
       else: echo event.kind
     discard lockSurface(window)
 
-    let width = img.width
-    let height = img.height
-    var numRays = 10_000 #samplesPerPixel * width * height
-    var idx = 0
-    #window = getSurface(screen)
-    #discard lockSurface(window)
-    while idx < numRays:
-      let x = rand((width).float)
-      let y = rand((height).float)
-      #if x.int >= window.w: continue
-      #if y.int >= window.h: continue
-      let r = camera.getRay(x / (width - 1).float,
-                            y / (height - 1).float)
-      let color = rayColor(r, world, maxDepth)
-      let yIdx = height - y.int - 1
-      let xIdx = x.int
-      counts[yIdx, xIdx] = counts[yIdx, xIdx] + 1
-      let curColor = bufT[yIdx, xIdx].toColor
-      let delta = (color.gammaCorrect - curColor) / counts[yIdx, xIdx].float
-      let newColor = curColor + delta
-      let cu8 = toColorU8(newColor)
-      let sdlColor = sdl2.mapRGB(window.format, cu8.r.byte, cu8.g.byte, cu8.b.byte)
-      bufT[yIdx, xIdx] = sdlColor
-      inc idx
-    echo window.pitch
-    echo window.w
-    echo window.h
-
-    #window.pixels = cast[pointer](bufT.unsafe_raw_buf())
-    var surf = fromBuffer[uint32](window.pixels, @[window.h.int, window.w.int])
-    let t0 = cpuTime()
-    #for idx in 0 ..< surf.size:
-    if surf.shape == bufT.shape:
-      echo "equal"
-      for idx in 0 ..< surf.size:
-        surf.unsafe_raw_offset()[idx] = bufT.unsafe_raw_offset()[idx]
+    ## rendering of this frame
+    when not defined(threads):
+      let width = img.width
+      let height = img.height
+      let numRays = 10_000 #samplesPerPixel * width * height
+      renderSdlFrame(bufT, counts, window, numRays, width, height, camera, world, maxDepth)
+      copyBuf(bufT, window)
     else:
       echo "unequal"
       for y in 0 ..< surf.shape[0]:

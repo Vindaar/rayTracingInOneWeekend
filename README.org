@@ -19,3 +19,12 @@ tracer (in which the material interactions of course are very
 different) here:
 
 https://github.com/Vindaar/AxionElectronLimit/blob/wip_thesis/raytracer2018.nim
+
+** New
+
+- more shapes:
+  - rectangles, boxes, disks
+- bounding volume hierarchies (BVH nodes) and axis-aligned bounding
+  boxes (AABBs) for better performance in scenes with many objects
+- rendering to SDL2 window with *interactive controls*
+- multithreaded rendering using Weave

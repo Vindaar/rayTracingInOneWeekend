@@ -6,7 +6,8 @@ import arraymancer
 
 import sdl2 except Color, Point
 
-proc rayColor*(r: Ray, world: var HittablesList, depth: int): Color =
+
+proc rayColor*(r: Ray, world: HittablesList, depth: int): Color =
   var rec: HitRecord
 
   if depth <= 0:

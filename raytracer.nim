@@ -203,6 +203,8 @@ proc renderSdl*(img: Image, world: var HittablesList,
 
   let width = img.width
   let height = img.height
+  const numRays = 10_000 # normally: `samplesPerPixel * width * height`
+
   when compileOption("threads"):
     let numPer = (img.width * img.height) div 12
     var ptrSeq = newSeq[ptr UncheckedArray[uint32]](12)
@@ -287,7 +289,6 @@ proc renderSdl*(img: Image, world: var HittablesList,
     when not compileOption("threads"):
       let width = img.width
       let height = img.height
-      let numRays = 10_000 #samplesPerPixel * width * height
       renderSdlFrame(bufT, counts, window, numRays, width, height, camera, world, maxDepth)
       copyBuf(bufT, window)
     else:

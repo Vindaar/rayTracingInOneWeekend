@@ -423,13 +423,13 @@ proc sceneDisk(): HittablesList =
 proc main =
   # Image
   const ratio = 3.0 / 2.0 #16.0 / 9.0
-  const width = 1200
+  const width = 600
   let img = Image(width: width, height: (width / ratio).int)
-  let samplesPerPixel = 500
-  let maxDepth = 50
+  let samplesPerPixel = 100
+  let maxDepth = 20
 
   # World
-  var world = randomScene(useBvh = false, 15) #sceneCast() #randomScene()
+  var world = randomScene(useBvh = true, 11) #sceneCast() #randomScene()
 
   # Camera
   #let lookFrom = point(-1, 5.0, -4) #point(-0.5, 3, -0.5)#point(3,3,2)
@@ -448,8 +448,8 @@ proc main =
 
   # Render (image)
   let fname = &"/tmp/render_width_{width}_samplesPerPixel_{samplesPerPixel}.ppm"
-  img.renderMC(fname, world, camera, samplesPerPixel, maxDepth)
-  #img.renderSdl(world, camera, samplesPerPixel, maxDepth)
+  #img.renderMC(fname, world, camera, samplesPerPixel, maxDepth)
+  img.renderSdl(world, camera, samplesPerPixel, maxDepth)
 
 when isMainModule:
   main()

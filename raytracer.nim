@@ -6,7 +6,7 @@ import arraymancer
 
 import sdl2 except Color, Point
 
-when defined(threads):
+when compileOption("threads"):
   import weave
 
 proc rayColor*(r: Ray, world: HittablesList, depth: int): Color =
@@ -194,16 +194,16 @@ proc renderSdl*(img: Image, world: var HittablesList,
 
   template resetBufs(bufT, counts: untyped): untyped {.dirty.} =
     bufT.setZero()
-    when not defined(threads):
+    when not compileOption("threads"):
       counts.setZero()
 
   var bufT = newTensor[uint32](@[img.height, img.width])
-  when not defined(threads):
+  when not compileOption("threads"):
     var counts = newTensor[int](@[img.height, img.width])
 
   let width = img.width
   let height = img.height
-  when defined(threads):
+  when compileOption("threads"):
     let numPer = (img.width * img.height) div 12
     var ptrSeq = newSeq[ptr UncheckedArray[uint32]](12)
     for i in 0 ..< 12:
@@ -284,7 +284,7 @@ proc renderSdl*(img: Image, world: var HittablesList,
     discard lockSurface(window)
 
     ## rendering of this frame
-    when not defined(threads):
+    when not compileOption("threads"):
       let width = img.width
       let height = img.height
       let numRays = 10_000 #samplesPerPixel * width * height

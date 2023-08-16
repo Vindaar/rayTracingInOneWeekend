@@ -199,6 +199,7 @@ proc renderSdl*(img: Image, world: var HittablesList,
   let width = img.width
   let height = img.height
   const numRays = 10_000 # normally: `samplesPerPixel * width * height`
+  var speed = speed
 
   when compileOption("threads"):
     let numPer = (img.width * img.height) div 12
@@ -214,9 +215,9 @@ proc renderSdl*(img: Image, world: var HittablesList,
         const dist = 1.0
         case event.key.keysym.scancode
         of SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT, SDL_SCANCODE_A, SDL_SCANCODE_D:
-          let newFrom = cL.cross(zAx).normalize().Point
           let cL = (camera.lookFrom - camera.lookAt).Vec3d
           let zAx = vec3(0.0, 1.0, 0.0)
+          let newFrom = speed * cL.cross(zAx).normalize().Point
           var nCL: Point
           var nCA: Point
           if event.key.keysym.scancode in {SDL_SCANCODE_LEFT, SDL_SCANCODE_A}:
@@ -227,11 +228,17 @@ proc renderSdl*(img: Image, world: var HittablesList,
             nCA = camera.lookAt - newFrom
           camera.updateLookFromAt(nCL, nCA)
           resetBufs(bufT, counts)
+        of SDL_SCANCODE_PAGEUP:
+          speed *= speedMul
+          echo "[INFO] New speed = ", speed
+        of SDL_SCANCODE_PAGEDOWN:
+          speed /= speedMul
+          echo "[INFO] New speed = ", speed
         of SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_W, SDL_SCANCODE_S:
           var cL = camera.lookFrom - camera.lookAt
           if not movementIsFree:
             cL[1] = 0.0
-          cL = cL.normalize()
+          cL = speed * cL.normalize()
           var nCL: Point
           var nCA: Point
           if event.key.keysym.scancode in {SDL_SCANCODE_UP, SDL_SCANCODE_W}:

@@ -221,11 +221,11 @@ proc renderSdl*(img: Image, world: var HittablesList,
           var nCL: Point
           var nCA: Point
           if event.key.keysym.scancode in {SDL_SCANCODE_LEFT, SDL_SCANCODE_A}:
-            nCL = camera.lookFrom + newFrom
-            nCA = camera.lookAt + newFrom
+            nCL = camera.lookFrom +. newFrom
+            nCA = camera.lookAt +. newFrom
           else:
-            nCL = camera.lookFrom - newFrom
-            nCA = camera.lookAt - newFrom
+            nCL = camera.lookFrom -. newFrom
+            nCA = camera.lookAt -. newFrom
           camera.updateLookFromAt(nCL, nCA)
           resetBufs(bufT, counts)
         of SDL_SCANCODE_PAGEUP:
@@ -242,11 +242,11 @@ proc renderSdl*(img: Image, world: var HittablesList,
           var nCL: Point
           var nCA: Point
           if event.key.keysym.scancode in {SDL_SCANCODE_UP, SDL_SCANCODE_W}:
-            nCL = camera.lookFrom - cL.Point
-            nCA = camera.lookAt - cL.Point
+            nCL = camera.lookFrom -. cL.Point
+            nCA = camera.lookAt -. cL.Point
           else:
-            nCL = camera.lookFrom + cL.Point
-            nCA = camera.lookAt + cL.Point
+            nCL = camera.lookFrom +. cL.Point
+            nCA = camera.lookAt +. cL.Point
 
           camera.updateLookFromAt(nCL, nCA)
           resetBufs(bufT, counts)

@@ -473,6 +473,236 @@ proc sceneDisk(): HittablesList =
   let groundMaterial = initMaterial(initLambertian(color(0.2, 0.7, 0.2)))
   result.add Disk(distance: 1.5, radius: 1.5, mat: groundMaterial)
 
+proc sceneTest(): HittablesList =
+  result = initHittables(0)
+
+  let groundMaterial = initMaterial(initLambertian(color(0.2, 0.7, 0.2)))
+  let EarthR = 6_371_000.0
+  result.add translate(point(0, -EarthR - 5, 0), Sphere(radius: EarthR, mat: groundMaterial))
+
+  #let smallSpheres = randomSpheres(3)
+  #result.add initBvhNode(smallSpheres)
+
+  let matBox = initMaterial(initLambertian(color(1,0,0)))
+
+  when false:
+    let center = -vec3(1.0, 1.75, 5.5) / 2.0
+    let telBox1 = rotateX(
+      translate(
+        initBox(point(0, 0, 0), point(1, 1.75, 5.5), matBox),
+        center),
+      0.0)
+    let telBox2 = rotateX(
+      translate(
+        initBox(point(0, 0, 0), point(1, 1.75, 5.5), matBox),
+        center),
+      -50.0)
+    result.add telBox1
+    result.add telBox2
+  elif false:
+    let center = vec3(-0.5, -0.5, -0.5)#vec3(0.0, 0.0, 0.0) #vec3(0.5, 0.5, 0.5)
+    let telBox1 = rotateZ(
+      translate(
+        initBox(point(0, 0, 0), point(1, 1, 1), matBox),
+        center),
+      0.0)
+    let telBox2 = rotateZ(
+      translate(
+        initBox(point(0, 0, 0), point(1, 1, 1), matBox),
+        center),
+      -50.0)
+    result.add telBox1
+    result.add telBox2
+
+  let cylMetal = initMaterial(initMetal(color(0.6, 0.6, 0.6), 0.2))
+  #let cyl = Cylinder(radius: 3.0, zMin: 0.0, zMax: 5.0, phiMax: 180.0.degToRad, mat: cylMetal)
+  let cyl = Cone(radius: 3.0, zMax: 4.0, height: 5.0, phiMax: 360.0.degToRad, mat: cylMetal)
+  #let cyl = Sphere(radius: 3.0, mat: cylMetal)
+  let center = vec3(0'f64, 0'f64, 0'f64)#vec3(0.5, 0.5, 0.5)
+  let h = rotateX(#cyl,
+      translate(
+        cyl,
+        center),
+      90.0)
+  result.add h
+
+  #
+  #let conMetal = initMaterial(initMetal(color(0.9, 0.9, 0.9), 0.2))
+  #let con = translate(vec3(3.0, 3.0, 0.0),
+  #                    Cone(radius: 2.0, height: 5.0, zMax: 3.0, phiMax: 180.0.degToRad, mat: conMetal))
+  #result.add con
+
+  #let ball0 = translate(vec3(1.0, -2.0, -4.0), Sphere(radius: 1.5, mat: strMetal))
+  #let ball1 = translate(vec3(1.0, 1.0, 1.0), rotateZ(Sphere(radius: 1.5, mat: strMetal), 0.0))
+  #let ball2 = translate(vec3(1.0, 1.0, 1.0), rotateZ(Sphere(radius: 1.5, mat: strMetal), 30.0))
+  #result.add ball0
+  #result.add ball2
+
+from sequtils import mapIt
+proc sceneLLNL(): HittablesList =
+  result = initHittables(0)
+
+  let
+    allR1 = @[63.006, 65.606, 68.305, 71.105, 74.011, 77.027, 80.157,
+             83.405, 86.775, 90.272, 93.902, 97.668, 101.576, 105.632]
+    allXsep = @[4.171, 4.140, 4.221, 4.190, 4.228, 4.245, 4.288, 4.284,
+               4.306, 4.324, 4.373, 4.387, 4.403, 4.481]
+    allAngles = @[0.579, 0.603, 0.628, 0.654, 0.680, 0.708, 0.737, 0.767,
+                 0.798, 0.830, 0.863, 0.898, 0.933, 0.970]
+    lMirror = 225.0
+
+
+  proc calcHeight(radius, angle: float): float =
+    result = radius / tan(angle.degToRad)
+
+  let groundMaterial = initMaterial(initLambertian(color(0.2, 0.7, 0.2)))
+  let EarthR = 6_371_000.0
+
+  var objs = initHittables(0)
+  #objs.add translate(point(0, -EarthR - 5, 0), Sphere(radius: EarthR, mat: groundMaterial))
+
+  let sunMaterial = initMaterial(initLambertian(color(1.0, 1.0, 0.5)))
+  let AU = 150_000_000_000_000.0
+  let SunR = 696_342_000_000.0
+
+  objs.add translate(point(0, 0, AU), Sphere(radius: SunR, mat: sunMaterial))
+
+
+
+  let conMetal = initMaterial(initMetal(color(0.9, 0.9, 0.9), 0.2))
+
+  let redMaterial = initMaterial(initLambertian(color(0.7, 0.1, 0.1)))
+  let greenMaterial = initMaterial(initLambertian(color(0.1, 0.7, 0.1)))
+
+  let cylMetal = initMaterial(initMetal(color(0.6, 0.6, 0.6), 0.2))
+  let perfectMirror = initMaterial(initMetal(color(1.0, 1.0, 1.0), 0.0))
+  let boreRadius = 43.0 / 2.0
+  let magnetBore = Cylinder(radius: boreRadius, zMin: 0.0, zMax: 9.26 * 1000.0, phiMax: 360.0.degToRad, mat: cylMetal)
+    .translate(vec3(0.0, 0.0, 2 * lMirror + 5.0)) # 5.0 for xSep + a bit
+  objs.add magnetBore
+
+  let zLine = Cylinder(radius: 0.05, zMin: -100.0, zMax: 9.26 * 1000.0, phiMax: 360.0.degToRad, mat: cylMetal)
+    .translate(vec3(0.0, -boreRadius, 0.0)) # 5.0 for xSep + a bit
+    #.translate(vec3(0.0, 0.0, 0.0)) # 5.0 for xSep + a bit
+  objs.add zLine
+
+
+  let r1_0 = allR1[0]
+  let α0 = allAngles[0].degToRad
+  let yL0   = r1_0 - sin(α0) * (lMirror / 2.0)
+  let yL0L2 = r1_0 - sin(α0) * (lMirror + allXSep[0] / 2.0) - sin(α0 * 3) * (lMirror / 2.0 + allXSep[0] / 2.0)  #- sin(α0 * 3) / (lMirror / 2.0)
+
+  let mirrorDiverge = sin(α0 * 3) * (lMirror / 2.0)
+  let addit = sin(α0) * (lMirror / 2.0 + allXSep[0] / 2.0) + sin(α0 * 3) * (allXSep[0] / 2.0)
+  let addit2 = sin(α0) * (lMirror / 2.0 + allXSep[0] / 2.0) + sin(α0 * 3) * (lMirror / 2.0 + allXSep[0] / 2.0)
+
+  #let ySep =  sin(α0) * (allXSep[0] / 2.0) + sin(α0 * 3) * (allXSep[0] / 2.0)
+  #let yL1 = sin(α0) * lMirror
+  #let yL2 = sin(3 * α0) * lMirror
+
+  let diff = abs(yL0 - yL0L2)
+
+  let y0 = cos(3 * α0) * (lMirror + allXSep[0] / 2.0) + cos(α0) * (lMirror / 2.0 + allXSep[0] / 2.0)
+  let xLine = Cylinder(radius: 0.5, zMin: -100.0, zMax: 100, phiMax: 360.0.degToRad, mat: cylMetal)
+    .translate(vec3(0.0, -boreRadius, 0.0)) # 5.0 for xSep + a bit
+    .rotateY(90.0)
+    .translate(vec3(0.0, 0.0, y0))
+  objs.add xLine
+
+  let y1 = cos(3 * α0) * (lMirror / 2.0)
+  let xLine2 = Cylinder(radius: 0.5, zMin: -100.0, zMax: 100, phiMax: 360.0.degToRad, mat: cylMetal)
+    .translate(vec3(0.0, -boreRadius, 0.0)) # 5.0 for xSep + a bit
+    .rotateY(90.0)
+    .translate(vec3(0.0, 0.0, y1))
+  objs.add xLine2
+
+
+  for i in 0 ..< allR1.len:
+    let r1 = allR1[i]
+    let angle = allAngles[i]
+    let
+      beta = allAngles[i].degToRad
+      xSep = allXsep[i]
+      r2 = r1 - lMirror * sin(beta)
+      r3 = r2 - 0.5 * xSep * tan(beta)
+      r4 = r3 - 0.5 * xSep * tan(3.0 * beta)
+      r5 = r4 - lMirror * sin(3.0 * beta)
+    echo "r1 = ", r1, " r5 = ", r5, " r5 - r1 = ", r5 - r1
+    ## XXX: fix sin and cosine of xsep & the distances!!!
+    let ySep =  sin(angle.degToRad) * (xsep / 2.0) + sin(angle.degToRad * 3) * (xsep / 2.0)
+    let yL1 = sin(angle.degToRad) * lMirror
+    let yL2 = sin(3 * angle.degToRad) * lMirror
+    let pos  = r1 - r1_0 #r1_0 # r1_0 #yL0
+    ## XXX: FIX POS2
+    let pos2 = r1 - r1_0 - yL1 / 2.0 - yL2 / 2.0 - ySep  #- 1.5 * addit2 # - addit  #yL0 - (yL0 - yL0L2)#L2 #- 15.0
+    echo "i = ", i, " pos = ", pos, " pos2 = ", pos2, " yL0 = ", yL0, " yL02 = ", yL0L2, " diff = ", diff, " mirrorD = ", mirrorDiverge
+
+    let yCenter = tan(2 * angle.degToRad) * (lMirror + xsep)
+    echo "yCenter value = ", yCenter, " compare to 'working' ", - (yL2) - (yL1) - ySep, " compare 'correct' = ", - (yL2/2) - (yL1/2) - ySep
+    when true:
+      ## XXX: compute the correct 'height' depending on the angle.
+      ## Effectively the upper most mirror must be flush with the magnet bore.
+      proc setCone(r, angle, y, z: float, mat: Material): Hittable =
+
+        let yL = (sin(angle.degToRad) * lMirror) / 2.0
+
+        let height = calcHeight(r, angle)
+        const mirrorSize = 30.0 # degrees
+        proc cone(r, h: float): Cone =
+          result = Cone(radius: r, height: h, zMax: lMirror, # height, # lMirror,
+                        phiMax: mirrorSize.degToRad, mat: mat)
+        proc cyl(r, h: float): Cylinder =
+          result = Cylinder(radius: r, zMin: 0.0, zMax: lMirror, # height, # lMirror,
+                            phiMax: mirrorSize.degToRad, mat: mat)
+        let c = cone(r, height)
+        #let c = cyl(r, height)
+        echo "Translating down by : ", y
+        var h = c.rotateZ(mirrorSize / 2.0) # rotate out half the miror size to center "top" of mirror
+          .translate(vec3(-r + yL, 0.0, -lMirror / 2.0)) # move to its center
+          #.rotateY(angle) # rotate by the angle
+          .rotateX(180.0) # we consider from magnet!
+          .rotateZ(-90.0)
+          .translate(vec3(0.0, y - boreRadius, z + lMirror / 2.0)) # move to its final position
+          #.translate(vec3(0.0, y, 0.0))
+          #.translate(vec3(0.0, -y/2, 0.0))
+          #.translate(vec3(0.0, y/2, 0.0))
+        result = h
+      ## XXX: z is wrong!
+      let con  = setCone(r1, angle,     pos, lMirror + xSep, perfectMirror)#greenMaterial)
+      let con2 = setCone(r4, 3 * angle, pos2, 0.0,           perfectMirror)# redMaterial) #- (yL2) - (yL1) - ySep
+      #let con2 = setCone(r4, 3 * angle, 0.0, 0.0,             redMaterial)
+    elif false:
+      ## XXX: Balls are sometimes cut off too!
+      let con = translate(vec3(0.0, 3.0 + i.float * 0.2, 0.0),
+                          Sphere(radius: allR1[i], mat: redMaterial))
+      let con2 = translate(vec3(0.0, 3.0 + i.float * 0.2, lMirror + xSep),
+                          Sphere(radius: allR1[i], mat: redMaterial))
+    elif false:
+      let con = Sphere(radius: allR1[i], mat: redMaterial)
+      let con2 = Sphere(radius: allR1[i], mat: redMaterial)
+    elif false: ## Sanity check of rotation and selection of mirrors
+      proc setCone(r, angle, angle2, y, z: float, mat: Material): Hittable =
+        let height = calcHeight(r, angle)
+        proc cone(r, h: float): Cone =
+          result = Cone(radius: r, height: h, zMax: lMirror, # height, # lMirror,
+                        phiMax: 30.0.degToRad, mat: mat)
+        let c = cone(r, height)
+        var h = c.rotateZ(15.0)
+          .translate(vec3(-r, 0.0, -lMirror / 2.0)) # move to its center
+          .rotateY(angle2) # rotate by the angle
+          .rotateZ(-90.0)
+          .translate(vec3(r, 0.0, lMirror / 2.0))
+        result = h
+      let con  = setCone(allR1[i], angle, angle, i.float * 0.2, lMirror + xSep, redMaterial)
+      ## XXX: something is broken when setting large angles! Obect only visible from some sides.
+      let con2 = setCone(allR1[i], angle, 45.0, i.float * 0.2, lMirror + xSep, greenMaterial)
+
+
+
+    objs.add con
+    objs.add con2
+  result.add objs #initBvhNode(objs)
+
 proc main(width = 600,
           maxDepth = 5,
           speed = 1.0,
@@ -489,14 +719,31 @@ proc main(width = 600,
   let img = Image(width: width, height: (width.float / ratio).int)
   let samplesPerPixel = 100
   # World
-  var world = randomScene(useBvh = true, 11) #sceneCast() #randomScene()
-
-  # Camera
-  #let lookFrom = point(-1, 5.0, -4) #point(-0.5, 3, -0.5)#point(3,3,2)
-  #let lookAt = point(1.0, 3.0, 2.0) #point(0, 1.5, 2.5)#point(0,0,-1)
-  let lookFrom = point(3,3,2)
-  let lookAt = point(0,0,-1)
-  let vup = vec3(0,1,0)
+  ## Looking at mirrors!
+  var lookFrom: Point
+  var lookAt: Point
+  var world: HittablesList
+  if llnl:
+    if axisAligned:
+      lookFrom = point(0.0, 0.0, -100.0) #point(-0.5, 3, -0.5)#point(3,3,2)
+      lookAt = point(0.0, 0.0, 0.0) #point(0, 1.5, 2.5)#point(0,0,-1)
+    elif focalPoint:
+      let
+        detAngle = 2.75.degToRad
+        focalDist = 1500.0
+      let yAt = tan(detAngle) * focalDist
+      lookFrom = point(0.0, -yAt, -focalDist) #point(-0.5, 3, -0.5)#point(3,3,2)
+      lookAt = point(0.0, 0.0, 0.0) #point(0, 1.5, 2.5)#point(0,0,-1)
+    else:
+      lookFrom = point(172.2886370206074, 58.69754358408407, -14.3630844062124) #point(-0.5, 3, -0.5)#point(3,3,2)
+      lookAt = point(171.4358852563132, 58.70226619735943, -13.84078935031287) #point(0, 1.5, 2.5)#point(0,0,-1)
+    world = sceneLLNL() #mixOfSpheres() #sceneRedBlue() # #sceneCast() #randomScene(useBvh = true, 11) #sceneCast() #randomScene()
+  else:
+    world = sceneTest()
+    lookFrom = point(-1, 5.0, -4) #point(-0.5, 3, -0.5)#point(3,3,2)
+    lookAt = point(1.0, 3.0, 2.0) #point(0, 1.5, 2.5)#point(0,0,-1)
+  #let lookFrom = point(0,1.5,-2.0)
+  #let lookAt = point(0,0.0,0)
   let vup = vec3(0.0,1.0,0.0)
   let distToFocus = 10.0 #(lookFrom - lookAt).length()
   let aperture = 0.0

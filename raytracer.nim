@@ -219,9 +219,9 @@ proc renderSdl*(img: Image, world: var HittablesList,
         const dist = 1.0
         case event.key.keysym.scancode
         of SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT, SDL_SCANCODE_A, SDL_SCANCODE_D:
-          let cL = (camera.lookFrom - camera.lookAt).Vec3
-          let zAx = vec3(0, 1, 0)
           let newFrom = cL.cross(zAx).normalize().Point
+          let cL = (camera.lookFrom - camera.lookAt).Vec3d
+          let zAx = vec3(0.0, 1.0, 0.0)
           var nCL: Point
           var nCA: Point
           if event.key.keysym.scancode in {SDL_SCANCODE_LEFT, SDL_SCANCODE_A}:
@@ -233,7 +233,7 @@ proc renderSdl*(img: Image, world: var HittablesList,
           camera.updateLookFromAt(nCL, nCA)
           resetBufs(bufT, counts)
         of SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_W, SDL_SCANCODE_S:
-          var cL = (camera.lookFrom - camera.lookAt).Vec3
+          var cL = camera.lookFrom - camera.lookAt
           if not movementIsFree:
             cL[1] = 0.0
           cL = cL.normalize()

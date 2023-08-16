@@ -25,7 +25,7 @@ type
 
   HitRecord* = object
     p*: Point
-    normal*: Vec3
+    normal*: Vec3d
     t*: float
     frontFace*: bool
     mat*: Material
@@ -195,7 +195,7 @@ proc add*(h: var HittablesList, lst: HittablesList) =
   for x in lst:
     h.add x
 
-proc setFaceNormal*(rec: var HitRecord, r: Ray, outward_normal: Vec3) =
+proc setFaceNormal*(rec: var HitRecord, r: Ray, outward_normal: Vec3d) =
   rec.frontFace = r.dir.dot(outward_normal) < 0
   rec.normal = if rec.frontFace: outward_normal else: -outward_normal
 
@@ -223,7 +223,7 @@ proc hit*(h: HittablesList, r: Ray, t_min, t_max: float, rec: var HitRecord): bo
 proc hit*(s: Sphere, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
   let oc = r.orig - s.center
   let a = r.dir.length_squared()
-  let half_b = oc.Vec3.dot(r.dir)
+  let half_b = oc.Vec3d.dot(r.dir)
   let c = oc.length_squared() - s.radius * s.radius
 
   let discriminant = half_b * half_b - a * c
@@ -241,7 +241,7 @@ proc hit*(s: Sphere, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
   rec.t = root
   rec.p = r.at(rec.t)
   let outward_normal = (rec.p - s.center) / s.radius
-  rec.setFaceNormal(r, outward_normal.Vec3)
+  rec.setFaceNormal(r, outward_normal.Vec3d)
   rec.mat = s.mat
 
   result = true
@@ -260,8 +260,8 @@ proc hit*(d: Disk, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
     return false
   rec.t = t
   rec.p = r.at(rec.t)
-  let outward_normal = vec3(0, 0, 1)
-  rec.setFaceNormal(r, outward_normal.Vec3)
+  let outward_normal = vec3(0.0, 0.0, 1.0)
+  rec.setFaceNormal(r, outward_normal.Vec3d)
   rec.mat = d.mat
 
   result = true
@@ -277,7 +277,7 @@ proc hit*(rect: XyRect, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
   #rec.u = (x - rect.x0) / (rect.x1 - rect.x0)
   #rec.v = (y - rect.y0) / (rect.y1 - rect.y0)
   rec.t = t
-  let outward_normal = vec3(0, 0, 1)
+  let outward_normal = vec3(0.0, 0.0, 1.0)
   rec.setFaceNormal(r, outward_normal)
   rec.mat = rect.mat
   rec.p = r.at(t)
@@ -294,7 +294,7 @@ proc hit*(rect: XzRect, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
   #rec.u = (x - rect.x0) / (rect.x1 - rect.x0)
   #rec.v = (y - rect.y0) / (rect.y1 - rect.y0)
   rec.t = t
-  let outward_normal = vec3(0, 1, 0)
+  let outward_normal = vec3(0.0, 1.0, 0.0)
   rec.setFaceNormal(r, outward_normal)
   rec.mat = rect.mat
   rec.p = r.at(t)
@@ -311,7 +311,7 @@ proc hit*(rect: YzRect, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
   #rec.u = (x - rect.x0) / (rect.x1 - rect.x0)
   #rec.v = (y - rect.y0) / (rect.y1 - rect.y0)
   rec.t = t
-  let outward_normal = vec3(1, 0, 0)
+  let outward_normal = vec3(1.0, 0.0, 0.0)
   rec.setFaceNormal(r, outward_normal)
   rec.mat = rect.mat
   rec.p = r.at(t)
@@ -534,7 +534,7 @@ proc scatter*(m: Dielectric, r_in: Ray, rec: HitRecord,
   let sinTheta = sqrt(1.0 - cosTheta * cosTheta)
 
   let cannotRefract = refraction_ratio * sinTheta > 1.0
-  var direction: Vec3
+  var direction: Vec3d
 
   if cannotRefract or reflectance(cosTheta, refractionRatio) > rand(1.0):
     direction = reflect(unitDirection, rec.normal)

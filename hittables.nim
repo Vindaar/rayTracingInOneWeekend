@@ -34,7 +34,6 @@ type
     mat*: Material
 
   Sphere* = object
-    center*: Point
     radius*: float
     mat*: Material
 

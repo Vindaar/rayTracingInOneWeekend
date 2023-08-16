@@ -337,10 +337,17 @@ proc renderSdl*(img: Image, world: var HittablesList,
     else:
       ## TODO: replace this by a long running background service to which we submit
       ## jobs and the await them? So we don't have the overhead!
+      var cSeq = newSeq[Camera](THREADS)
+      for i in 0 ..< THREADS:
+        cSeq[i] = clone(camera)
+
+      if camera.lookFrom != lastLookFrom:
+        echo "[INFO] Current position (lookFrom) = ", camera.lookFrom
+        lastLookFrom = camera.lookFrom
       init(Weave)
-      parallelFor j in 0 ..< 12:
-        captures: {ptrSeq, window, numPer, numRays, width, height, camera, world, maxDepth}
-        renderFrame(j, ptrSeq[j], window, numPer, numRays, width, height, camera, world, maxDepth)
+      parallelFor j in 0 ..< THREADS:
+        captures: {ptrSeq, ctsSeq, window, numPer, numRays, width, height, cSeq, world, maxDepth}
+        renderFrame(j, ptrSeq[j], ctsSeq[j], window, numPer, numRays, width, height, cSeq[j], world, maxDepth)
       exit(Weave)
       copyBuf(bufT, window)
 

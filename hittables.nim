@@ -4,11 +4,13 @@ type
   Transform* = Mat4d
 
   HittableKind* = enum
-    htSphere, htBvhNode, htXyRect, htXzRect, htYzRect, htBox, htDisk
+    htSphere, htCylinder, htCone, htBvhNode, htXyRect, htXzRect, htYzRect, htBox, htDisk
   Hittable* = ref object
     trans*: Transform = mat4d()
     case kind*: HittableKind
     of htSphere: hSphere*: Sphere
+    of htCylinder: hCylinder*: Cylinder
+    of htCone: hCone*: Cone
     of htBvhNode: hBvhNode*: BvhNode
     of htXyRect: hXyRect*: XyRect
     of htXzRect: hXzRect*: XzRect
@@ -49,6 +51,20 @@ type
     mat*: Material
     y0*, y1*, z0*, z1*, k*: float
 
+  Cylinder* = object
+    radius*: float
+    zMin*: float
+    zMax*: float
+    phiMax*: float
+    mat*: Material
+
+  Cone* = object ## Describes a positive cone, starting at z = 0 with `radius` towards +z. r = 0 at `height`
+    radius*: float ## Radius at z = 0
+    phiMax*: float
+    height*: float ## Height of the cone, if complete. This is where its radius is 0.
+    zMax*: float ## Cuts off the cone at zMax.
+    mat*: Material
+
   Box* = object
     boxMin*: Point
     boxMax*: Point
@@ -83,6 +99,20 @@ type
 #  deallocShared(h.data)
 #  h.data = nil
 #  h.len = 0
+
+proc clone*(h: Hittable): Hittable =
+  result = Hittable(trans: h.trans,
+                    kind: h.kind)
+  case h.kind
+  of htSphere:   result.hSphere = h.hSphere
+  of htCylinder: result.hCylinder = h.hCylinder
+  of htCone:     result.hCone = h.hCone
+  of htBvhNode:  result.hBvhNode = h.hBvhNode
+  of htXyRect:   result.hXyRect = h.hXyRect
+  of htXzRect:   result.hXzRect = h.hXzRect
+  of htYzRect:   result.hYzRect = h.hYzRect
+  of htBox:      result.hBox = h.hBox
+  of htDisk:     result.hDisk = h.hDisk
 
 proc initHittables*(size: int = 8): HittablesList =
   ## allocates memory for `size`, but remains empty
@@ -200,8 +230,29 @@ proc hit*(h: HittablesList, r: Ray, t_min, t_max: float, rec: var HitRecord): bo
       closestSoFar = tmpRec.t
       rec = tmpRec
 
+proc solveQuadratic*(a, b, c: float, t0, t1: var float): bool =
+  ## Copied from `pbrt` `efloat.h`.
+  ## Find quadratic discriminant
+  let discrim = b * b - 4.0 * a * c
+  if discrim < 0.0: return false
+  let rootDiscrim = sqrt(discrim)
+
+  #EFloat floatRootDiscrim(rootDiscrim, MachineEpsilon * rootDiscrim);
+
+  # Compute quadratic _t_ values
+  var q: float
+  if b < 0:
+    q = -0.5 * (b - rootDiscrim)
+  else:
+    q = -0.5 * (b + rootDiscrim)
+  t0 = q / a
+  t1 = c / q
+  if t0 > t1: swap(t0, t1)
+  result = true
+
 proc hit*(s: Sphere, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
-  let oc = r.orig - s.center
+  let oc = r.orig
+
   let a = r.dir.length_squared()
   let half_b = oc.Vec3d.dot(r.dir)
   let c = oc.length_squared() - s.radius * s.radius
@@ -220,9 +271,121 @@ proc hit*(s: Sphere, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
 
   rec.t = root
   rec.p = r.at(rec.t)
-  let outward_normal = (rec.p - s.center) / s.radius
+  let outward_normal = (rec.p) / s.radius
   rec.setFaceNormal(r, outward_normal.Vec3d)
   rec.mat = s.mat
+
+  result = true
+
+proc hit*(cyl: Cylinder, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
+  ## Initialize ray coordinate values
+  let a = r.dir.x * r.dir.x + r.dir.y * r.dir.y
+  let b = 2.0 * (r.dir.x * r.orig.x + r.dir.y * r.orig.y)
+  let c = r.orig.x * r.orig.x + r.orig.y * r.orig.y - cyl.radius * cyl.radius
+
+  var
+    t0: float
+    t1: float
+  if not solveQuadratic(a, b, c, t0, t1): return false
+
+  # Check quadric shape _t0_ and _t1_ for nearest intersection
+  if t0 > tMax or t1 <= 0: return false
+  var tShapeHit = t0
+  if tShapeHit <= 0:
+    tShapeHit = t1
+    if tShapeHit > tMax: return false
+
+  # Compute cylinder hit point and $\phi$
+  var pHit = r.at(tShapeHit)
+
+  # Refine cylinder intersection point
+  let hitRad = sqrt(pHit.x * pHit.x + pHit.y * pHit.y)
+  pHit.x = pHit.x * cyl.radius / hitRad
+  pHit.y = pHit.y * cyl.radius / hitRad
+  var phi = arctan2(pHit.y, pHit.x)
+  if phi < 0: phi += 2 * Pi
+
+  # Test cylinder intersection against clipping parameters
+  if pHit.z < cyl.zMin or pHit.z > cyl.zMax or phi > cyl.phiMax:
+      if tShapeHit == t1: return false
+      tShapeHit = t1
+      ## XXX: not applicable because we don't track floating point uncertainty
+      if t1 > tMax: return false
+      # Compute cylinder hit point and $\phi$
+      pHit = r.at(tShapeHit)
+
+      # Refine cylinder intersection point
+      let hitRad = sqrt(pHit.x * pHit.x + pHit.y * pHit.y)
+      pHit.x = pHit.x * cyl.radius / hitRad
+      pHit.y = pHit.y * cyl.radius / hitRad
+      phi = arctan2(pHit.y, pHit.x)
+      if phi < 0: phi += 2 * Pi
+      if pHit.z < cyl.zMin or pHit.z > cyl.zMax or phi > cyl.phiMax: return false
+
+  # Find parametric representation of cylinder hit
+  let u = phi / cyl.phiMax
+  let v = (pHit.z - cyl.zMin) / (cyl.zMax - cyl.zMin)
+
+  # Compute cylinder $\dpdu$ and $\dpdv$
+  let dpdu = vec3(-cyl.phiMax * pHit.y, cyl.phiMax * pHit.x, 0.0)
+  let dpdv = vec3(0.0, 0.0, cyl.zMax - cyl.zMin)
+
+  rec.t = tShapeHit
+  rec.p = r.at(rec.t)
+  let outward_normal = normalize(cross(dpdu, dpdv)) #(rec.p) / s.radius
+  rec.setFaceNormal(r, outward_normal.Vec3d)
+  rec.mat = cyl.mat
+
+  result = true
+
+proc hit*(con: Cone, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
+  ## Initialize ray coordinate values
+  var k = (con.radius / con.height)^2
+  let a = r.dir.x * r.dir.x + r.dir.y * r.dir.y - k * r.dir.z * r.dir.z
+  let b = 2 * (r.dir.x * r.orig.x + r.dir.y * r.orig.y - k * r.dir.z * (r.orig.z - con.height))
+  let c = r.orig.x * r.orig.x + r.orig.y * r.orig.y - k * (r.orig.z - con.height) * (r.orig.z - con.height)
+
+  var
+    t0: float
+    t1: float
+  if not solveQuadratic(a, b, c, t0, t1): return false
+
+  # Check quadric shape _t0_ and _t1_ for nearest intersection
+  if t0 > tMax or t1 <= 0: return false
+  var tShapeHit = t0
+  if tShapeHit <= 0:
+    tShapeHit = t1
+    if tShapeHit > tMax: return false
+
+  # Compute cone inverse mapping
+  var pHit = r.at(tShapeHit)
+  var phi = arctan2(pHit.y, pHit.x)
+  if phi < 0.0: phi += 2.0 * PI
+
+  # Test cone intersection against clipping parameters
+  if pHit.z < 0 or pHit.z > con.zMax or phi > con.phiMax:
+    if tShapeHit == t1: return false
+    tShapeHit = t1
+    if t1 > tMax: return false
+    # Compute cone inverse mapping
+    pHit = r.at(tShapeHit)
+    phi = arctan2(pHit.y, pHit.x)
+    if phi < 0.0: phi += 2 * Pi
+    if pHit.z < 0.0 or pHit.z > con.zMax or phi > con.phiMax: return false
+
+  # Find parametric representation of cylinder hit
+  let u = phi / con.phiMax
+  let v = (pHit.z) / (con.height)
+
+  # Compute cone $\dpdu$ and $\dpdv$
+  let dpdu = vec3(-con.phiMax * pHit.y, con.phiMax * pHit.x, 0.0)
+  let dpdv = vec3(-pHit.x / (1.0 - v), -pHit.y / (1.0 - v), (con.height))
+
+  rec.t = tShapeHit
+  rec.p = r.at(rec.t)
+  let outward_normal = normalize(cross(dpdu, dpdv))
+  rec.setFaceNormal(r, outward_normal.Vec3d)
+  rec.mat = con.mat
 
   result = true
 
@@ -340,6 +503,8 @@ proc hit*(h: Hittable, r: Ray, t_min, t_max: float, rec: var HitRecord): bool {.
   # 2. compute the hit
   case h.kind
   of htSphere:   result = h.hSphere.hit(rOb, t_min, t_max, rec)
+  of htCylinder: result = h.hCylinder.hit(rOb, t_min, t_max, rec)
+  of htCone: result = h.hCone.hit(rOb, t_min, t_max, rec)
   of htDisk:     result = h.hDisk.hit(rOb, t_min, t_max, rec)
   of htBvhNode:  result = h.hBvhNode.hit(rOb, t_min, t_max, rec)
   of htXyRect:   result = h.hXyRect.hit(rOb, t_min, t_max, rec)
@@ -365,6 +530,22 @@ proc boundingBox*(s: Disk, output_box: var AABB): bool =
   output_box = initAabb(
     - point(s.radius, s.radius, s.distance - 0.0001),
     + point(s.radius, s.radius, s.distance + 0.0001)
+  )
+  result = true
+
+proc boundingBox*(cyl: Cylinder, output_box: var AABB): bool =
+  ## in z direction only a small width
+  output_box = initAabb( ## XXX: Could be from 0 to Height
+    - point(cyl.radius, cyl.radius, cyl.zMax - 0.0001),
+    + point(cyl.radius, cyl.radius, cyl.zMax + 0.0001)
+  )
+  result = true
+
+proc boundingBox*(con: Cone, output_box: var AABB): bool =
+  ## in z direction only a small width
+  output_box = initAabb(
+    - point(con.radius, con.radius, con.height - 0.0001),
+    + point(con.radius, con.radius, con.height + 0.0001)
   )
   result = true
 
@@ -397,6 +578,8 @@ proc boundingBox*(b: Box, outputBox: var AABB): bool =
 proc boundingBox*(h: Hittable, output_box: var AABB): bool =
   case h.kind
   of htSphere: result = h.hSphere.boundingBox(output_box)
+  of htCylinder: result = h.hCylinder.boundingBox(output_box)
+  of htCone: result = h.hCone.boundingBox(output_box)
   of htDisk: result = h.hDisk.boundingBox(output_box)
   of htBvhNode: result = h.hBvhNode.boundingBox(output_box)
   of htXyRect: result = h.hXyRect.boundingBox(output_box)

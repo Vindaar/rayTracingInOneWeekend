@@ -74,9 +74,7 @@ proc render*(img: Image, f: string, world: var HittablesList,
     for i in 0 ..< img.width:
       var pixelColor = color(0, 0, 0)
       for s in 0 ..< samplesPerPixel:
-        let u = (i.float + rand(1.0)) / (img.width - 1).float
-        let v = (j.float + rand(1.0)) / (img.height - 1).float
-        let r = camera.getRay(u, v)
+        let r = camera.getRay(i, j)
         pixelColor += rayColor(r, world, maxDepth)
       f.writeColor(pixelColor, samplesPerPixel)
   f.close()
@@ -92,13 +90,12 @@ proc renderMC*(img: Image, f: string, world: var HittablesList,
   var counts = newTensor[int](@[img.height, img.width])
   var idx = 0
   while idx < numRays:
-    let x = rand((img.width).float)
-    let y = rand((img.height).float)
-    let r = camera.getRay(x / (img.width - 1).float,
-                          y / (img.height - 1).float)
+    let x = rand(img.width)
+    let y = rand(img.height)
+    let r = camera.getRay(x, y)
     let color = rayColor(r, world, maxDepth)
-    buf[y.int, x.int] = buf[y.int, x.int] + color
-    counts[y.int, x.int] = counts[y.int, x.int] + 1
+    buf[y, x] = buf[y, x] + color
+    counts[y, x] = counts[y, x] + 1
     inc idx
     if idx mod (img.width * img.height) == 0:
       let remain = numRays - idx
@@ -114,15 +111,14 @@ proc renderSdlFrame(buf: var Tensor[uint32], counts: var Tensor[int],
                     camera: Camera, world: HittablesList, maxDepth: int) =
   var idx = 0
   while idx < numRays:
-    let x = rand((width).float)
-    let y = rand((height).float)
+    let x = rand(width)
+    let y = rand(height)
     #if x.int >= window.w: continue
     #if y.int >= window.h: continue
-    let r = camera.getRay(x / (width - 1).float,
-                          y / (height - 1).float)
+    let r = camera.getRay(x, y)
     let color = rayColor(r, world, maxDepth)
-    let yIdx = height - y.int - 1
-    let xIdx = x.int
+    let yIdx = height - y - 1
+    let xIdx = x
     counts[yIdx, xIdx] = counts[yIdx, xIdx] + 1
     let curColor = buf[yIdx, xIdx].toColor
     let delta = (color.gammaCorrect - curColor) / counts[yIdx, xIdx].float
@@ -141,11 +137,10 @@ proc renderFrame(j: int, buf: ptr UncheckedArray[uint32], window: SurfacePtr, nu
   while j < numRays:
     let idx = rand(frm.float .. to.float)
     let x = idx mod width.float
-    let y = (height.float - idx / height.float)
+    let y = idx.float / width.float
     #if x.int >= window.w: continue
     #if y.int >= window.h: continue
-    let r = camera.getRay(x.float / (width - 1).float,
-                          y.float / (height - 1).float)
+    let r = camera.getRay(x.int, y.int)
     let color = rayColor(r, world, maxDepth)
     counts[idx.int - frm] = counts[idx.int - frm] + 1
     let curColor = buf[idx.int - frm].toColor

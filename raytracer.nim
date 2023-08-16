@@ -166,7 +166,10 @@ proc copyBuf(bufT: Tensor[uint32], window: SurfacePtr) =
 
 proc renderSdl*(img: Image, world: var HittablesList,
                 camera: Camera,
-                samplesPerPixel, maxDepth: int) =
+                samplesPerPixel, maxDepth: int,
+                speed = 1.0, speedMul = 1.1,
+                numRays = 100
+               ) =
   discard sdl2.init(INIT_EVERYTHING)
   var screen = sdl2.createWindow("Ray tracing".cstring,
                                  SDL_WINDOWPOS_UNDEFINED,
@@ -199,8 +202,13 @@ proc renderSdl*(img: Image, world: var HittablesList,
 
   let width = img.width
   let height = img.height
-  const numRays = 10_000 # normally: `samplesPerPixel * width * height`
+
   var speed = speed
+
+  ## XXX: IMPLEMENT change of vertical field of view using mouse wheel! sort of a zoom
+
+  var lastLookFrom: Point
+  proc `==`(p1, p2: Point): bool = result = p1.x == p2.x and p1.y == p2.y and p1.z == p2.z
 
   when compileOption("threads"):
     let numPer = (img.width * img.height) div THREADS
@@ -458,14 +466,21 @@ proc sceneDisk(): HittablesList =
   let groundMaterial = initMaterial(initLambertian(color(0.2, 0.7, 0.2)))
   result.add Disk(distance: 1.5, radius: 1.5, mat: groundMaterial)
 
-proc main =
+proc main(width = 600,
+          maxDepth = 5,
+          speed = 1.0,
+          speedMul = 1.1,
+          llnl = false,
+          axisAligned = false,
+          focalPoint = false,
+          vfov = 90.0,
+          numRays = 100,
+          nJobs = 16) =
   # Image
-  const ratio = 3.0 / 2.0 #16.0 / 9.0
-  const width = 600
-  let img = Image(width: width, height: (width / ratio).int)
+  THREADS = nJobs
+  const ratio = 16.0 / 9.0 #16.0 / 9.0
+  let img = Image(width: width, height: (width.float / ratio).int)
   let samplesPerPixel = 100
-  let maxDepth = 20
-
   # World
   var world = randomScene(useBvh = true, 11) #sceneCast() #randomScene()
 
@@ -475,11 +490,16 @@ proc main =
   let lookFrom = point(3,3,2)
   let lookAt = point(0,0,-1)
   let vup = vec3(0,1,0)
+  let vup = vec3(0.0,1.0,0.0)
   let distToFocus = 10.0 #(lookFrom - lookAt).length()
   let aperture = 0.0
-  let camera = initCamera(lookFrom, lookAt, vup, vfov = 90,
+  let defocusAngle = 0.0
+  let camera = initCamera(lookFrom, lookAt, vup, vfov = vfov,
                           aspectRatio = ratio,
-                          aperture = aperture, focusDist = distToFocus)
+                          #aperture = aperture,
+                          width = width,
+                          defocusAngle = defocusAngle,
+                          focusDist = distToFocus)
 
   # Rand seed
   randomize(0xE7)
@@ -487,7 +507,10 @@ proc main =
   # Render (image)
   let fname = &"/tmp/render_width_{width}_samplesPerPixel_{samplesPerPixel}.ppm"
   #img.renderMC(fname, world, camera, samplesPerPixel, maxDepth)
-  img.renderSdl(world, camera, samplesPerPixel, maxDepth)
+  img.renderSdl(world, camera, samplesPerPixel, maxDepth,
+                speed = speed, speedMul = speedMul,
+                numRays = numRays)
 
 when isMainModule:
-  main()
+  import cligen
+  dispatch main

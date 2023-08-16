@@ -250,6 +250,23 @@ proc renderSdl*(img: Image, world: var HittablesList,
 
           camera.updateLookFromAt(nCL, nCA)
           resetBufs(bufT, counts)
+        of SDL_SCANCODE_LCTRL, SDL_SCANCODE_SPACE:
+          let cL = (camera.lookFrom - camera.lookAt).Vec3d
+          let zAx = vec3(1.0, 0.0, 0.0)
+          let newFrom = if cL.dot(zAx) > 0:
+                          speed * cL.cross(zAx).normalize().Point
+                        else:
+                          speed * -cL.cross(zAx).normalize().Point
+          var nCL: Point
+          var nCA: Point
+          if event.key.keysym.scancode == SDL_SCANCODE_LCTRL:
+            nCL = camera.lookFrom -. newFrom
+            nCA = camera.lookAt -. newFrom
+          else:
+            nCL = camera.lookFrom +. newFrom
+            nCA = camera.lookAt +. newFrom
+          camera.updateLookFromAt(nCL, nCA)
+          resetBufs(bufT, counts)
         of SDL_SCANCODE_BACKSPACE:
           echo "Resetting view!"
           camera.updateLookFromAt(origLookFrom, origLookAt)

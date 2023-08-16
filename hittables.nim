@@ -159,41 +159,17 @@ proc add*(h: var HittablesList, el: Hittable) =
   #inc h.len
   #h[h.len - 1] = el
 
-proc add*(h: var HittablesList, s: Sphere) =
-  var ht = Hittable(kind: htSphere)
-  ht.hSphere = s
-  h.add ht
+proc toHittable*(s: Sphere): Hittable   = result = Hittable(kind: htSphere, hSphere: s)
+proc toHittable*(c: Cylinder): Hittable = result = Hittable(kind: htCylinder, hCylinder: c)
+proc toHittable*(c: Cone): Hittable     = result = Hittable(kind: htCone, hCone: c)
+proc toHittable*(d: Disk): Hittable     = result = Hittable(kind: htDisk, hDisk: d)
+proc toHittable*(b: BvhNode): Hittable  = result = Hittable(kind: htBvhNode, hBvhNode: b)
+proc toHittable*(r: XyRect): Hittable   = result = Hittable(kind: htXyRect, hXyRect: r)
+proc toHittable*(r: XzRect): Hittable   = result = Hittable(kind: htXzRect, hXzRect: r)
+proc toHittable*(r: YzRect): Hittable   = result = Hittable(kind: htYzRect, hYzRect: r)
+proc toHittable*(b: Box): Hittable      = result = Hittable(kind: htBox, hBox: b)
 
-proc add*(h: var HittablesList, s: Disk) =
-  var ht = Hittable(kind: htDisk)
-  ht.hDisk = s
-  h.add ht
-
-proc add*(h: var HittablesList, b: BvhNode) =
-  var ht = Hittable(kind: htBvhNode)
-  ht.hBvhNode = b
-  h.add ht
-
-proc add*(h: var HittablesList, b: XyRect) =
-  var ht = Hittable(kind: htXyRect)
-  ht.hXyRect = b
-  h.add ht
-
-proc add*(h: var HittablesList, b: XzRect) =
-  var ht = Hittable(kind: htXzRect)
-  ht.hXzRect = b
-  h.add ht
-
-proc add*(h: var HittablesList, b: YzRect) =
-  var ht = Hittable(kind: htYzRect)
-  ht.hYzRect = b
-  h.add ht
-
-proc add*(h: var HittablesList, b: Box) =
-  var ht = Hittable(kind: htBox)
-  ht.hBox = b
-  h.add ht
-
+proc add*[T: AnyHittable](h: var HittablesList, ht: T) = h.add toHittable(ht)
 proc add*(h: var HittablesList, lst: HittablesList) =
   for x in lst:
     h.add x

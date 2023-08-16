@@ -8,6 +8,7 @@ import sdl2 except Color, Point
 
 when compileOption("threads"):
   import weave
+var THREADS = 16
 
 proc rayColor*(r: Ray, world: HittablesList, depth: int): Color =
   var rec: HitRecord
@@ -128,11 +129,12 @@ proc renderSdlFrame(buf: var Tensor[uint32], counts: var Tensor[int],
     buf[yIdx, xIdx] = sdlColor
     inc idx
 
-proc renderFrame(j: int, buf: ptr UncheckedArray[uint32], window: SurfacePtr, numPer, numRays, width, height: int,
+proc renderFrame(j: int, buf: ptr UncheckedArray[uint32],
+                 counts: ptr UncheckedArray[int],
+                 window: SurfacePtr, numPer, numRays, width, height: int,
                  camera: Camera, world: HittablesList, maxDepth: int) =
   let frm = numPer * j
-  let to = if j == 12: width * height - 1 else: numPer * (j + 1) - 1
-  var counts = newTensor[int](to - frm)
+  let to = if j == THREADS: width * height - 1 else: numPer * (j + 1) - 1
   var j = 0
   while j < numRays:
     let idx = rand(frm.float .. to.float)
@@ -190,12 +192,10 @@ proc renderSdl*(img: Image, world: var HittablesList,
 
   template resetBufs(bufT, counts: untyped): untyped {.dirty.} =
     bufT.setZero()
-    when not compileOption("threads"):
-      counts.setZero()
+    counts.setZero()
 
   var bufT = newTensor[uint32](@[img.height, img.width])
-  when not compileOption("threads"):
-    var counts = newTensor[int](@[img.height, img.width])
+  var counts = newTensor[int](@[img.height, img.width])
 
   let width = img.width
   let height = img.height
@@ -203,10 +203,12 @@ proc renderSdl*(img: Image, world: var HittablesList,
   var speed = speed
 
   when compileOption("threads"):
-    let numPer = (img.width * img.height) div 12
-    var ptrSeq = newSeq[ptr UncheckedArray[uint32]](12)
-    for i in 0 ..< 12:
+    let numPer = (img.width * img.height) div THREADS
+    var ptrSeq = newSeq[ptr UncheckedArray[uint32]](THREADS)
+    var ctsSeq = newSeq[ptr UncheckedArray[int]](THREADS)
+    for i in 0 ..< THREADS:
       ptrSeq[i] = cast[ptr UncheckedArray[uint32]](bufT.unsafe_raw_offset()[i * numPer].addr)
+      ctsSeq[i] = cast[ptr UncheckedArray[int]](counts.unsafe_raw_offset()[i * numPer].addr)
   while not quit:
     while pollEvent(event):
       case event.kind

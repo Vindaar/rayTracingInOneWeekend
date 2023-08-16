@@ -1,9 +1,12 @@
 import basetypes, math, aabb, algorithm, random
 
 type
+  Transform* = Mat4d
+
   HittableKind* = enum
     htSphere, htBvhNode, htXyRect, htXzRect, htYzRect, htBox, htDisk
   Hittable* = ref object
+    trans*: Transform = mat4d()
     case kind*: HittableKind
     of htSphere: hSphere*: Sphere
     of htBvhNode: hBvhNode*: BvhNode
@@ -320,21 +323,63 @@ proc hit*(rect: YzRect, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
 proc hit*(box: Box, r: Ray, t_min, t_max: float, rec: var HitRecord): bool =
   result = box.sides.hit(r, t_min, t_max, rec)
 
+proc transform*(h: Hittable, v: Vec3d): Vec3d =
+  ## Apply the world to object transformation for the given vector.
+  # calculate transformed vector
+  let vt = h.trans * vec4d(v, w = 0) ## For vectors weight is always 1!
+  # construct result vector. The weight row is irrelevant!
+  result = vec3(vt.x, vt.y, vt.z)
+
+proc transform*(h: Hittable, p: Point): Point =
+  ## Apply the world to object transformation for the given vector.
+  # calculate transformed vector
+  let vt = h.trans * vec4d(p.Vec3d, w = 1) ## XXX: For points we *CURRENTLY* just assume weight 1
+  # construct result Point
+  result = Point(vec3(vt.x, vt.y, vt.z) / vt.w)
+
+proc transform*(h: Hittable, r: Ray): Ray =
+  result = Ray(orig: h.transform(r.orig), dir: h.transform(r.dir))
+
+proc inverseTransform*[T: Vec3d | Point | Ray](h: Hittable, v: T): T =
+  var mh = h.clone()
+  mh.trans = h.trans.inverse()
+  result = mh.transform(v)
+
+proc transTransform*(h: Hittable, v: Vec3d): Vec3d =
+  var mh = h.clone()
+  mh.trans = h.trans.transpose()
+  result = mh.transform(v)
+
+proc invertNormal*(h: Hittable, n: Vec3d): Vec3d =
+  var mh = h.clone()
+  ## XXX: NOTE: if I'm not mistaken `pbrt` uses `inverse().transpose()` here.
+  ## But if we do that the reflections on metals break if we use rotations.
+  mh.trans = h.trans.inverse() #.transpose()
+  result = mh.transform(n)
+
 proc hit*(h: Hittable, r: Ray, t_min, t_max: float, rec: var HitRecord): bool {.gcsafe.} =
+  # 1. transform to object space
+  let rOb = h.transform(r)
+  # 2. compute the hit
   case h.kind
-  of htSphere: result = h.hSphere.hit(r, t_min, t_max, rec)
-  of htDisk: result = h.hDisk.hit(r, t_min, t_max, rec)
-  of htBvhNode: result = h.hBvhNode.hit(r, t_min, t_max, rec)
-  of htXyRect: result = h.hXyRect.hit(r, t_min, t_max, rec)
-  of htXzRect: result = h.hXzRect.hit(r, t_min, t_max, rec)
-  of htYzRect: result = h.hYzRect.hit(r, t_min, t_max, rec)
-  of htBox: result = h.hBox.hit(r, t_min, t_max, rec)
+  of htSphere:   result = h.hSphere.hit(rOb, t_min, t_max, rec)
+  of htDisk:     result = h.hDisk.hit(rOb, t_min, t_max, rec)
+  of htBvhNode:  result = h.hBvhNode.hit(rOb, t_min, t_max, rec)
+  of htXyRect:   result = h.hXyRect.hit(rOb, t_min, t_max, rec)
+  of htXzRect:   result = h.hXzRect.hit(rOb, t_min, t_max, rec)
+  of htYzRect:   result = h.hYzRect.hit(rOb, t_min, t_max, rec)
+  of htBox:      result = h.hBox.hit(rOb, t_min, t_max, rec)
+  # 3. convert rec back to world space
+  ## XXX: normal transformation in general more complex!
+  ## `pbrt` uses `mInv` for *FORWARD* transformation!
+  rec.normal = normalize(h.invertNormal(rec.normal))
+  rec.p = h.inverseTransform(rec.p)
 
 proc boundingBox*(s: Sphere, output_box: var AABB): bool =
   ##
   output_box = initAabb(
-    s.center - point(s.radius, s.radius, s.radius),
-    s.center + point(s.radius, s.radius, s.radius)
+    - point(s.radius, s.radius, s.radius),
+    + point(s.radius, s.radius, s.radius)
   )
   result = true
 
@@ -470,7 +515,7 @@ proc initMaterial*[T](m: T): Material =
     result = Material(kind: mkDielectric, mDielectric: m)
 
 proc initSphere*(center: Point, radius: float, mat: Material): Sphere =
-  result = Sphere(center: center, radius: radius, mat: mat)
+  result = Sphere(radius: radius, mat: mat)
 
 proc initDisk*(distance: float, radius: float, mat: Material): Disk =
   result = Disk(distance: distance, radius: radius, mat: mat)
@@ -483,6 +528,27 @@ proc initXzRect*(x0, x1, z0, z1, k: float, mat: Material): XzRect =
 
 proc initYzRect*(y0, y1, z0, z1, k: float, mat: Material): YzRect =
   result = YzRect(y0: y0, y1: y1, z0: z0, z1: z1, k: k, mat: mat)
+
+template rotations(name: untyped): untyped =
+  proc `name`*[T: AnyHittable](h: T, angle: float): Hittable =
+    result = h.toHittable()
+    result.trans = `name`(mat4d(), angle.degToRad)
+  proc `name`*(h: Hittable, angle: float): Hittable =
+    result = h.clone()
+    result.trans = `name`(h.trans, angle.degToRad)
+rotations(rotateX)
+rotations(rotateY)
+rotations(rotateZ)
+
+proc translate*[T: AnyHittable; V: Vec3d | Point](h: T, v: V): Hittable =
+  result = h.toHittable()
+  result.trans = translate(mat4d(), -v.Vec3d)
+proc translate*[V: Vec3d | Point; T: AnyHittable](v: V, h: T): Hittable = h.translate(v)
+
+proc translate*[V: Vec3d | Point](h: Hittable, v: V): Hittable =
+  result = h.clone()
+  result.trans = translate(h.trans, -v.Vec3d)
+proc translate*[V: Vec3d | Point](v: V, h: Hittable): Hittable = h.translate(v.Vec3d)
 
 proc initBox*(p0, p1: Point, mat: Material): Box =
   result.boxMin = p0

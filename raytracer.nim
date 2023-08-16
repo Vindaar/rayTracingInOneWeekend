@@ -316,8 +316,8 @@ proc sceneRedBlue(): HittablesList =
   let matLeft = initMaterial(initLambertian(color(0,0,1)))
   let matRight = initMaterial(initLambertian(color(1,0,0)))
 
-  result.add Sphere(center: point(-R, 0, -1), radius: R, mat: matLeft)
-  result.add Sphere(center: point(R, 0, -1), radius: R, mat: matRight)
+  result.add translate(vec3(-R, 0.0, -1.0), Sphere(radius: R, mat: matLeft))
+  result.add translate(vec3(R, 0, -1), Sphere(radius: R, mat: matRight))
 
 proc mixOfSpheres(): HittablesList =
   result = initHittables(0)
@@ -327,19 +327,14 @@ proc mixOfSpheres(): HittablesList =
   let matLeft = initMaterial(initDielectric(1.5))
   let matRight = initMaterial(initMetal(color(0.8, 0.6, 0.2), 1.0))
 
-  result.add Sphere(center: point(0, -100.5, -1), radius: 100, mat: matGround)
-  result.add Sphere(center: point(0, 0, -1), radius: 0.5, mat: matCenter)
-  result.add Sphere(center: point(-1.0, 0, -1), radius: 0.5, mat: matLeft)
-  result.add Sphere(center: point(-1.0, 0, -1), radius: -0.4, mat: matLeft)
-  result.add Sphere(center: point(1.0, 0, -1), radius: 0.5, mat: matRight)
+  result.add translate(vec3(0.0, -100.5, -1), Sphere(radius: 100, mat: matGround))
+  result.add translate(vec3(0.0, 0.0, -1), Sphere(radius: 0.5, mat: matCenter))
+  result.add translate(vec3(-1.0, 0.0, -1), Sphere(radius: 0.5, mat: matLeft))
+  result.add translate(vec3(-1.0, 0.0, -1), Sphere(radius: -0.4, mat: matLeft))
+  result.add translate(vec3(1.0, 0.0, -1), Sphere(radius: 0.5, mat: matRight))
 
-proc randomScene(useBvh = true, numBalls = 11): HittablesList =
+proc randomSpheres(numBalls: int): HittablesList =
   result = initHittables(0)
-
-  let groundMaterial = initMaterial(initLambertian(color(0.5, 0.5, 0.5)))
-  result.add Sphere(center: point(0, -1000, 0), radius: 1000, mat: groundMaterial)
-
-  var smallSpheres = initHittables(0)
   for a in -numBalls ..< numBalls:
     for b in -numBalls ..< numBalls:
       let chooseMat = rand(1.0)
@@ -351,45 +346,52 @@ proc randomScene(useBvh = true, numBalls = 11): HittablesList =
           # diffuse
           let albedo = randomVec().Color * randomVec().Color
           sphereMaterial = initMaterial(initLambertian(albedo))
-          smallSpheres.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
+          result.add translate(center, Sphere(radius: 0.2, mat: sphereMaterial))
         elif chooseMat < 0.95:
           # metal
           let albedo = randomVec(0.5, 1.0).Color
           let fuzz = rand(0.0 .. 0.5)
           sphereMaterial = initMaterial(initMetal(albedo, fuzz))
-          smallSpheres.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
+          result.add translate(center, Sphere(radius: 0.2, mat: sphereMaterial))
         else:
           # glass
           sphereMaterial = initMaterial(initDielectric(1.5))
-          smallSpheres.add Sphere(center: center, radius: 0.2, mat: sphereMaterial)
+          result.add translate(center, Sphere(radius: 0.2, mat: sphereMaterial))
 
+proc randomScene(useBvh = true, numBalls = 11): HittablesList =
+  result = initHittables(0)
+
+  let groundMaterial = initMaterial(initLambertian(color(0.5, 0.5, 0.5)))
+  result.add translate(vec3(0.0, -1000.0, 0.0), Sphere(radius: 1000, mat: groundMaterial))
+
+  let smallSpheres = randomSpheres(numBalls)
   if useBvh:
     result.add initBvhNode(smallSpheres)
   else:
     result.add smallSpheres
 
   let mat1 = initMaterial(initDielectric(1.5))
-  result.add Sphere(center: point(0, 1, 0), radius: 1.0, mat: mat1)
+  result.add translate(vec3(0.0, 1.0, 0.0), Sphere(radius: 1.0, mat: mat1))
 
   let mat2 = initMaterial(initLambertian(color(0.4, 0.2, 0.1)))
-  result.add Sphere(center: point(-4, 1, 0), radius: 1.0, mat: mat2)
+  result.add translate(vec3(-4.0, 1.0, 0.0), Sphere(radius: 1.0, mat: mat2))
 
   let mat3 = initMaterial(initMetal(color(0.7, 0.6, 0.5), 0.0))
-  result.add Sphere(center: point(4, 1, 0), radius: 1.0, mat: mat3)
+  result.add translate(vec3(4.0, 1.0, 0.0), Sphere(radius: 1.0, mat: mat3))
 
 proc sceneCast(): HittablesList =
   result = initHittables(0)
 
   let groundMaterial = initMaterial(initLambertian(color(0.2, 0.7, 0.2)))
   let EarthR = 6_371_000.0
-  result.add Sphere(center: point(0, -EarthR, 0), radius: EarthR, mat: groundMaterial)
+  result.add translate(vec3(0.0, -EarthR - 5, 0.0), Sphere(radius: EarthR, mat: groundMaterial))
 
   #let concrete = initMaterial(initLambertian(color(0.5, 0.5, 0.5)))
   #let airportWall = initXyRect(-10, 0, 0, 10, 10, mat = concrete)
   #result.add airportWall
 
   let strMetal = initMaterial(initMetal(color(0.6, 0.6, 0.6), 0.2))
-  let telBox = initBox(point(-2, 1.5, 4), point(0, 1.75, 5.5), strMetal)
+  let telBox = rotateX(initBox(point(-2, 1.5, 4), point(0, 1.75, 5.5), strMetal), 30.0)
   result.add telBox
 
   let concreteMaterial = initMaterial(initLambertian(color(0.6, 0.6, 0.6)))
@@ -409,7 +411,7 @@ proc sceneCast(): HittablesList =
   let pos = point(AU / 10.0, AU / 10.0, AU).normalize * AU
   echo pos.repr
   let sunMat = initMaterial(initLambertian(color(1.0, 1.0, 0.0)))
-  result.add Sphere(center: pos, radius: SunR, mat: sunMat)
+  result.add translate(pos, Sphere(radius: SunR, mat: sunMat))
 
   #result.add Disk(distance: 3.3, radius: 10.0, mat: concreteMaterial)
 

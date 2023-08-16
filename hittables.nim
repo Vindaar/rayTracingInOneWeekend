@@ -59,6 +59,8 @@ type
     radius*: float
     mat*: Material
 
+  AnyHittable* = Sphere | Cylinder | Cone | BvhNode | XyRect | XzRect | YzRect | Box | Disk
+
   MaterialKind* = enum
     mkLambertian, mkMetal, mkDielectric
   Material* = object

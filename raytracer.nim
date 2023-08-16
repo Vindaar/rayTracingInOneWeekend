@@ -176,7 +176,8 @@ proc renderSdl*(img: Image, world: var HittablesList,
     quit($sdl2.getError())
 
   var mouseModeIsRelative = false
-  var movementIsFree = false
+  var mouseEnabled = false
+  var movementIsFree = true
 
   var quit = false
   var event = sdl2.defaultEvent
@@ -271,35 +272,48 @@ proc renderSdl*(img: Image, world: var HittablesList,
           echo "Resetting view!"
           camera.updateLookFromAt(origLookFrom, origLookAt)
           resetBufs(bufT, counts)
-        of SDL_SCANCODE_ESCAPE:
-          ## deactivate relative mouse motion
-          if mouseModeIsRelative:
-            discard setRelativeMouseMode(False32)
-            mouseModeIsRelative = false
         of SDL_SCANCODE_N:
           ## activate free movement (n for noclip ;))
           movementIsFree = not movementIsFree
+        of SDL_SCANCODE_ESCAPE:
+          ## 'Uncapture' the mouse
+          if mouseModeIsRelative:
+            discard setRelativeMouseMode(False32)
+            mouseModeIsRelative = false
+            mouseEnabled = false
+            echo "[INFO] Mouse disabled."
         else: discard
       of MousebuttonDown:
         ## activate relative mouse motion
         if not mouseModeIsRelative:
           discard setRelativeMouseMode(True32)
           mouseModeIsRelative = true
+          mouseEnabled = true
+          echo "[INFO] Mouse enabled."
+          #if mouseEnabled: echo "[INFO] Mouse enabled."
+          #else: echo "[INFO] Mouse disabled."
       of WindowEvent:
         freeSurface(window)
         window = sdl2.getsurface(screen)
       of MouseMotion:
         ## for now just take a small fraction of movement as basis
-        let yaw = -event.motion.xrel.float / 1000.0
-        var pitch = -event.motion.yrel.float / 1000.0
-        var newLook: Vec3
-        if not movementIsFree:
-          ## TODO: fix me
-          newLook = (camera.lookAt - camera.lookFrom).Vec3.rotateAround(camera.lookAt, yaw, 0, pitch)
-          camera.updateLookFrom(Point(newLook))
-        else:
-          camera.updateYawPitchRoll(camera.lookFrom, camera.yaw + yaw, camera.pitch + pitch, 0.0)
-        resetBufs(bufT, counts)
+        if mouseEnabled:
+          let yaw = -event.motion.xrel.float / 1000.0
+          var pitch = -event.motion.yrel.float / 1000.0
+          var newLook: Vec3d
+          if not movementIsFree:
+            ## TODO: fix me
+            newLook = (camera.lookAt - camera.lookFrom).Vec3d.rotateAround(camera.lookAt, yaw, 0, pitch)
+            camera.updateLookFrom(Point(newLook))
+          else:
+            let nYaw = camera.yaw + yaw
+            echo "Old yaw ", camera.yaw, " add yaw = ", yaw, " new yaw ", nYaw
+
+            let nPitch = camera.pitch + pitch
+            echo "New view from : ", camera.lookFrom, ", yaw = ", nYaw, ", pitch = ", nPitch
+            camera.updateYawPitchRoll(camera.lookFrom, nYaw, nPitch, 0.0)
+            echo "Now looking at: ", camera.lookAt
+          resetBufs(bufT, counts)
 
       else: echo event.kind
     discard lockSurface(window)
